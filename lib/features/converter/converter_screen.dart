@@ -13,11 +13,6 @@ const _muted = Color(0xFF64748B);
 const _label = Color(0xFF334155);
 const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
-const _successBg = Color(0xFFDCFCE7);
-const _successText = Color(0xFF166534);
-const _infoBg = Color(0xFFEFF6FF);
-const _infoBorder = Color(0xFFBFDBFE);
-const _infoText = Color(0xFF1D4ED8);
 const _errorBg = Color(0xFFFEF2F2);
 const _errorBorder = Color(0xFFFECACA);
 const _errorText = Color(0xFFB91C1C);
@@ -55,7 +50,6 @@ class _ConverterScreenState extends State<ConverterScreen> {
         return _ToolPage(
           title: 'Encoding Converter',
           subtitle: 'Encode, decode, and hash text locally.',
-          badge: 'Local Tools',
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
@@ -96,7 +90,7 @@ class _InputCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Card(
-      minHeight: 520,
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -144,13 +138,15 @@ class _OutputCard extends StatelessWidget {
         : controller.outputText;
 
     return _Card(
-      minHeight: 520,
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _CardTitle('Output'),
           const SizedBox(height: 6),
-          const _BodyText('Copy-friendly results. No server processing.'),
+          const _BodyText(
+            'Copy-friendly results. All Hashing/Encoding/Decoding is done locally.',
+          ),
           const SizedBox(height: 34),
           _OutputArea(
             text: output,
@@ -168,10 +164,6 @@ class _OutputCard extends StatelessWidget {
                     controller.outputText,
                   ),
           ),
-          const SizedBox(height: 64),
-          const _InfoBox(
-            'Conversion and hashing happen locally on your device.',
-          ),
         ],
       ),
     );
@@ -182,13 +174,11 @@ class _ToolPage extends StatelessWidget {
   const _ToolPage({
     required this.title,
     required this.subtitle,
-    required this.badge,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final String badge;
   final Widget child;
 
   @override
@@ -232,7 +222,6 @@ class _ToolPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusBadge(label: badge),
               ],
             ),
           ),
@@ -306,7 +295,7 @@ class _TextArea extends StatelessWidget {
         decoration: _inputDecoration(
           borderRadius: 12,
           contentPadding: const EdgeInsets.all(18),
-          hintText: 'hello internet',
+          hintText: 'ex. hello internet',
         ),
       ),
     );
@@ -403,34 +392,6 @@ class _OperationDropdownState extends State<_OperationDropdown> {
   }
 }
 
-class _InfoBox extends StatelessWidget {
-  const _InfoBox(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: _infoBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _infoBorder),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: _infoText,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          height: 1.3,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
 class _CardTitle extends StatelessWidget {
   const _CardTitle(this.text);
   final String text;
@@ -480,31 +441,6 @@ class _FieldLabel extends StatelessWidget {
         fontSize: 13,
         fontWeight: FontWeight.w500,
         letterSpacing: 0,
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: _successBg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: _successText,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
       ),
     );
   }
@@ -615,7 +551,11 @@ InputDecoration _inputDecoration({
 }) {
   return InputDecoration(
     hintText: hintText,
-    hintStyle: const TextStyle(color: _muted),
+    hintStyle: TextStyle(
+      color: _muted.withValues(alpha: 0.62),
+      fontSize: 14,
+      letterSpacing: 0,
+    ),
     filled: true,
     fillColor: _surface,
     isDense: true,

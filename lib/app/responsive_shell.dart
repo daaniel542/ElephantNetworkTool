@@ -118,7 +118,11 @@ class _DesktopSidebar extends StatelessWidget {
                 child: _SidebarBrand(),
               ),
               const SizedBox(height: 42),
-              for (var index = 0; index < _ResponsiveShellState._destinations.length; index += 1) ...[
+              for (
+                var index = 0;
+                index < _ResponsiveShellState._destinations.length;
+                index += 1
+              ) ...[
                 _SidebarItem(
                   destination: _ResponsiveShellState._destinations[index],
                   selected: selectedIndex == index,
@@ -286,7 +290,11 @@ class _MobileNav extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            for (var index = 0; index < _ResponsiveShellState._destinations.length; index += 1)
+            for (
+              var index = 0;
+              index < _ResponsiveShellState._destinations.length;
+              index += 1
+            )
               Expanded(
                 child: _MobileNavItem(
                   destination: _ResponsiveShellState._destinations[index],

@@ -15,9 +15,6 @@ const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
 const _successBg = Color(0xFFDCFCE7);
 const _successText = Color(0xFF166534);
-const _errorBg = Color(0xFFFEF2F2);
-const _errorBorder = Color(0xFFFECACA);
-const _errorText = Color(0xFFB91C1C);
 
 class PasswordScreen extends StatelessWidget {
   const PasswordScreen({super.key});
@@ -29,23 +26,15 @@ class PasswordScreen extends StatelessWidget {
         return _ToolPage(
           title: 'Password Generator',
           subtitle: 'Create secure passwords using local device randomness.',
-          badge: 'Local Tools',
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 920;
               final settings = _PasswordSettingsCard(controller: controller);
               final output = _GeneratedPasswordCard(controller: controller);
-              final validation = _ValidationCard(error: controller.error);
 
               if (!isWide) {
                 return Column(
-                  children: [
-                    settings,
-                    const SizedBox(height: 20),
-                    output,
-                    const SizedBox(height: 20),
-                    validation,
-                  ],
+                  children: [settings, const SizedBox(height: 20), output],
                 );
               }
 
@@ -54,15 +43,7 @@ class PasswordScreen extends StatelessWidget {
                 children: [
                   SizedBox(width: 500, child: settings),
                   const SizedBox(width: 32),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        output,
-                        const SizedBox(height: 32),
-                        validation,
-                      ],
-                    ),
-                  ),
+                  Expanded(child: output),
                 ],
               );
             },
@@ -81,6 +62,7 @@ class _PasswordSettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Card(
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -152,7 +134,7 @@ class _PasswordSettingsCard extends StatelessWidget {
           const SizedBox(height: 8),
           _TextInput(
             initialValue: controller.excludedChars,
-            hintText: 'ex. 0OL1',
+            hintText: 'ex. lIO0',
             onChanged: controller.setExcludedChars,
           ),
           const SizedBox(height: 14),
@@ -181,7 +163,7 @@ class _GeneratedPasswordCard extends StatelessWidget {
     final hasPassword = controller.generatedPassword.isNotEmpty;
 
     return _Card(
-      minHeight: 220,
+      minHeight: 227,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -230,45 +212,15 @@ class _GeneratedPasswordCard extends StatelessWidget {
   }
 }
 
-class _ValidationCard extends StatelessWidget {
-  const _ValidationCard({required this.error});
-
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      minHeight: 212,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CardTitle('Built-in validation states'),
-          const SizedBox(height: 12),
-          const _BodyText(
-            'Length limits, no character type selected, and exclusion conflicts are handled with friendly inline errors.',
-          ),
-          const SizedBox(height: 28),
-          _ErrorBox(
-            message: error ?? 'Validation messages appear here when needed.',
-            isPlaceholder: error == null,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ToolPage extends StatelessWidget {
   const _ToolPage({
     required this.title,
     required this.subtitle,
-    required this.badge,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final String badge;
   final Widget child;
 
   @override
@@ -311,11 +263,6 @@ class _ToolPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                _StatusBadge(
-                  label: badge,
-                  background: _successBg,
-                  foreground: _successText,
                 ),
               ],
             ),
@@ -630,35 +577,6 @@ class _OutputField extends StatelessWidget {
           fontSize: 17,
           height: 1.35,
           fontFamily: 'monospace',
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBox extends StatelessWidget {
-  const _ErrorBox({required this.message, required this.isPlaceholder});
-
-  final String message;
-  final bool isPlaceholder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: isPlaceholder ? _background : _errorBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isPlaceholder ? _border : _errorBorder),
-      ),
-      child: Text(
-        message,
-        style: TextStyle(
-          color: isPlaceholder ? _muted : _errorText,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
           letterSpacing: 0,
         ),
       ),
