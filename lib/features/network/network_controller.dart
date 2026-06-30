@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:dart_ping/dart_ping.dart';
 import 'package:flutter/foundation.dart';
 
 import 'dns_service.dart';
 import 'ping_service.dart';
+import 'traceroute_service.dart';
 
-enum NetworkToolMode { ping, dns }
+enum NetworkToolMode { ping, dns, trace }
 
 /// Controller for the Network Tools screen.
 ///
@@ -14,11 +17,15 @@ class NetworkController extends ChangeNotifier {
   NetworkController({
     required PingService pingService,
     required DnsService dnsService,
+    required TracerouteService tracerouteService,
   }) : _pingService = pingService,
-       _dnsService = dnsService;
+       _dnsService = dnsService,
+       _tracerouteService = tracerouteService;
 
   final PingService _pingService;
   final DnsService _dnsService;
+  final TracerouteService _tracerouteService;
+  StreamSubscription<TracerouteHop>? _traceSubscription;
 
   bool _isDisposed = false;
 
@@ -57,12 +64,18 @@ class NetworkController extends ChangeNotifier {
   /// Whether the user has completed at least one DNS lookup in this session.
   bool hasDnsLookupResult = false;
 
-  bool get isBusy => isPinging || isDnsLoading;
+  String traceHost = '';
+  bool isTracing = false;
+  final List<String> traceOutput = [];
+  String? traceError;
+
+  bool get isBusy => isPinging || isDnsLoading || isTracing;
 
   List<String> get activeOutputLines {
     return switch (activeMode) {
       NetworkToolMode.ping => _pingLines,
       NetworkToolMode.dns => _dnsLines,
+      NetworkToolMode.trace => _traceLines,
     };
   }
 
@@ -109,8 +122,19 @@ class NetworkController extends ChangeNotifier {
     return lines;
   }
 
+  List<String> get _traceLines {
+    final lines = <String>[...traceOutput.expand((line) => line.split('\n'))];
+    if (traceError != null) {
+      lines.add('Error: $traceError');
+    }
+    return lines;
+  }
+
   void setActiveMode(NetworkToolMode mode) {
     if (activeMode == mode) return;
+    if (activeMode == NetworkToolMode.trace && mode != NetworkToolMode.trace) {
+      unawaited(stopTraceroute());
+    }
     activeMode = mode;
     _notify();
   }
@@ -134,11 +158,16 @@ class NetworkController extends ChangeNotifier {
     _notify();
   }
 
+  void setTraceHost(String value) {
+    traceHost = value;
+  }
+
   /// Start streaming ping packets to [pingHost].
   Future<void> startPing() async {
     final host = pingHost.trim();
     if (isPinging) return;
 
+    await stopTraceroute();
     pingOutput.clear();
     pingError = null;
 
@@ -186,6 +215,7 @@ class NetworkController extends ChangeNotifier {
     final domain = dnsDomain.trim();
     if (isDnsLoading) return;
 
+    await stopTraceroute();
     dnsResults = [];
     dnsError = null;
     hasDnsLookupResult = false;
@@ -212,6 +242,80 @@ class NetworkController extends ChangeNotifier {
     } finally {
       hasDnsLookupResult = true;
       isDnsLoading = false;
+      _notify();
+    }
+  }
+
+  Future<void> startTraceroute(String host) async {
+    final target = host.trim();
+    if (target.isEmpty) {
+      traceError = 'Trace failed. Please check the host.';
+      _notify();
+      return;
+    }
+
+    await stopTraceroute(addStopLine: false);
+    _pingService.stopPing();
+
+    traceHost = target;
+    traceOutput
+      ..clear()
+      ..add('Tracing route to $target...')
+      ..add('Maximum hops: 30')
+      ..add('')
+      ..add('Waiting for hop responses...');
+    traceError = null;
+    isTracing = true;
+    _notify();
+
+    _traceSubscription = _tracerouteService
+        .trace(host: target, maxHops: 30)
+        .listen(
+          (hop) {
+            if (traceOutput.isNotEmpty &&
+                traceOutput.last == 'Waiting for hop responses...') {
+              traceOutput.removeLast();
+            }
+            traceOutput.add(_formatTraceHop(hop));
+            _notify();
+          },
+          onError: (_) {
+            traceError = 'Trace failed. Please check the host.';
+            isTracing = false;
+            _notify();
+          },
+          onDone: () {
+            isTracing = false;
+            _traceSubscription = null;
+            _notify();
+          },
+          cancelOnError: true,
+        );
+  }
+
+  Future<void> stopTraceroute({bool addStopLine = true}) async {
+    final wasTracing = isTracing;
+    isTracing = false;
+
+    if (wasTracing && addStopLine) {
+      if (traceOutput.isNotEmpty &&
+          traceOutput.last == 'Waiting for hop responses...') {
+        traceOutput.removeLast();
+      }
+      traceOutput.add('--- Trace stopped by user ---');
+    }
+    if (wasTracing) {
+      _notify();
+    }
+
+    await _tracerouteService.stopTrace();
+    await _traceSubscription?.cancel().timeout(
+      const Duration(seconds: 1),
+      onTimeout: () {},
+    );
+    _traceSubscription = null;
+
+    if (!wasTracing && addStopLine == false) {
       _notify();
     }
   }
@@ -271,6 +375,16 @@ class NetworkController extends ChangeNotifier {
     lines.add('    Key  : ${txtParts.key}');
     lines.addAll(_formatWrappedField('Value', txtParts.value));
     return lines;
+  }
+
+  String _formatTraceHop(TracerouteHop hop) {
+    final hopNumber = hop.hopNumber.toString().padLeft(2);
+    final address = hop.address ?? '*';
+    final latency = hop.latency == null
+        ? ''
+        : ' ${_formatDurationMs(hop.latency)} ms';
+    final destination = hop.isDestination ? ' (destination)' : '';
+    return '$hopNumber  $address$latency  ${hop.message}$destination';
   }
 
   ({String key, String value})? _splitTxtRecord(String rawValue) {
@@ -350,6 +464,8 @@ class NetworkController extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _pingService.stopPing();
+    _traceSubscription?.cancel();
+    _tracerouteService.stopTrace();
     _dnsService.close();
     super.dispose();
   }

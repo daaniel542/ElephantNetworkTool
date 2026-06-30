@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../shared/utils/clipboard_helper.dart';
 import '../../shared/widgets/terminal_output.dart';
 import 'dns_service.dart';
 import 'network_controller.dart';
-import 'ping_service.dart';
 
 const _background = Color(0xFFF8FAFC);
 const _surface = Colors.white;
@@ -25,33 +25,37 @@ class NetworkScreen extends StatefulWidget {
 }
 
 class _NetworkScreenState extends State<NetworkScreen> {
-  late final NetworkController _controller;
-  late final TextEditingController _pingHostController;
-  late final TextEditingController _dnsDomainController;
+  final TextEditingController _pingHostController = TextEditingController();
+  final TextEditingController _dnsDomainController = TextEditingController();
+  final TextEditingController _traceHostController = TextEditingController();
+  NetworkController? _controller;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = NetworkController(
-      pingService: PingService(),
-      dnsService: DnsService(),
-    );
-    _pingHostController = TextEditingController(text: _controller.pingHost);
-    _dnsDomainController = TextEditingController(text: _controller.dnsDomain);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = context.read<NetworkController>();
+    if (_controller == controller) return;
+
+    _controller = controller;
+    _pingHostController.text = controller.pingHost;
+    _dnsDomainController.text = controller.dnsDomain;
+    _traceHostController.text = controller.traceHost;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     _pingHostController.dispose();
     _dnsDomainController.dispose();
+    _traceHostController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<NetworkController>();
+
     return AnimatedBuilder(
-      animation: _controller,
+      animation: controller,
       builder: (context, _) {
         return _ToolPage(
           title: 'Network Tools',
@@ -61,11 +65,12 @@ class _NetworkScreenState extends State<NetworkScreen> {
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
               final controls = _ControlsCard(
-                controller: _controller,
+                controller: controller,
                 pingHostController: _pingHostController,
                 dnsDomainController: _dnsDomainController,
+                traceHostController: _traceHostController,
               );
-              final output = _OutputCard(controller: _controller);
+              final output = _OutputCard(controller: controller);
 
               if (!isWide) {
                 return Column(
@@ -94,16 +99,24 @@ class _ControlsCard extends StatelessWidget {
     required this.controller,
     required this.pingHostController,
     required this.dnsDomainController,
+    required this.traceHostController,
   });
 
   final NetworkController controller;
   final TextEditingController pingHostController;
   final TextEditingController dnsDomainController;
+  final TextEditingController traceHostController;
 
   @override
   Widget build(BuildContext context) {
     final isPing = controller.activeMode == NetworkToolMode.ping;
-    final textController = isPing ? pingHostController : dnsDomainController;
+    final isDns = controller.activeMode == NetworkToolMode.dns;
+    final isTrace = controller.activeMode == NetworkToolMode.trace;
+    final textController = isPing
+        ? pingHostController
+        : isDns
+        ? dnsDomainController
+        : traceHostController;
 
     return _Card(
       minHeight: 520,
@@ -119,17 +132,19 @@ class _ControlsCard extends StatelessWidget {
             onChanged: controller.setActiveMode,
           ),
           const SizedBox(height: 30),
-          _FieldLabel(isPing ? 'Host or IP Address' : 'Domain Name'),
+          _FieldLabel(isDns ? 'Domain Name' : 'Host or IP Address'),
           const SizedBox(height: 8),
           _TextInput(
             controller: textController,
             hintText: 'google.com',
-            enabled: !controller.isPinging && !controller.isDnsLoading,
+            enabled: !controller.isBusy,
             onChanged: (value) {
               if (isPing) {
                 controller.setPingHost(value);
-              } else {
+              } else if (isDns) {
                 controller.setDnsDomain(value);
+              } else {
+                controller.setTraceHost(value);
               }
             },
           ),
@@ -172,7 +187,7 @@ class _ControlsCard extends StatelessWidget {
                 ),
               ],
             ),
-          ] else ...[
+          ] else if (isDns) ...[
             const _FieldLabel('Record Type'),
             const SizedBox(height: 8),
             _Dropdown<DnsRecordType>(
@@ -199,10 +214,39 @@ class _ControlsCard extends StatelessWidget {
                       controller.lookupDns();
                     },
             ),
+          ] else if (isTrace) ...[
+            const _BodyText(
+              'Trace the route by probing each hop with increasing TTL values.',
+            ),
+            const SizedBox(height: 36),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _PrimaryButton(
+                  label: controller.isTracing ? 'Tracing...' : 'Start Trace',
+                  width: 160,
+                  isLoading: controller.isTracing,
+                  onPressed: controller.isTracing
+                      ? null
+                      : () {
+                          controller.setTraceHost(traceHostController.text);
+                          controller.startTraceroute(traceHostController.text);
+                        },
+                ),
+                _SecondaryButton(
+                  label: 'Stop',
+                  width: 112,
+                  onPressed: controller.isTracing
+                      ? () => controller.stopTraceroute()
+                      : null,
+                ),
+              ],
+            ),
           ],
           const SizedBox(height: 40),
           const _Caption(
-            'Ping support is the v1 network diagnostic priority. DNS uses Cloudflare DNS-over-HTTPS.',
+            'Ping and Trace use local ICMP probes. DNS uses Cloudflare DNS-over-HTTPS.',
           ),
         ],
       ),
@@ -368,9 +412,14 @@ class _SegmentedControl extends StatelessWidget {
             onTap: () => onChanged(NetworkToolMode.ping),
           ),
           _SegmentButton(
-            label: 'DNS Lookup',
+            label: 'DNS',
             selected: mode == NetworkToolMode.dns,
             onTap: () => onChanged(NetworkToolMode.dns),
+          ),
+          _SegmentButton(
+            label: 'Trace',
+            selected: mode == NetworkToolMode.trace,
+            onTap: () => onChanged(NetworkToolMode.trace),
           ),
         ],
       ),

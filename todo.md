@@ -12,8 +12,6 @@ You are an expert Flutter & Dart engineer. Your task is to build the "Net Utilit
 6. Only use the dependencies listed in Phase 1. Do not introduce new packages.
 7. NO AI SLOP. Only write code that is logical and methological, ex. do not write out whole functions if there is library function that can perform the action.
 8. Summarize code changes/code implementations so that the user can follow the current development stage/plan as well as to learn and follow your methodology.
-
-
 ---
 
 ## 🗂️ Phase 1: Project Initialization & Dependencies
@@ -100,12 +98,57 @@ You are an expert Flutter & Dart engineer. Your task is to build the "Net Utilit
 
 ---
 
-## 🚀 Phase 6: Assembly
+## 📡 Phase 6 Extension: Traceroute Implementation
 
-**Goal:** Tie everything together in the main entry point.
+**Goal:** Build the platform-specific traceroute tool using TTL manipulation with the existing `dart_ping` package.
 
-- [ ] Write `lib/main.dart`:
-  - Initialize the app.
-  - Wrap `MaterialApp` in a `MultiProvider` injecting `NetworkController`, `PasswordController`, and `ConverterController`.
-  - Set the home to `ResponsiveShell`.
-  - Apply a clean, utilitarian `ThemeData` (preferably Dark Mode by default).
+**Context & Rules:**
+
+- Execute this phase by providing complete, copy-pasteable code for the files requested below.
+- Do not use placeholders like `// implement logic here`. NO AI SLOP.
+- All code must be null-safe and target the latest stable Flutter SDK.
+- Maintain the strict architecture: `Screen` -> `Controller` -> `Service`.
+- Only use the existing `dart_ping` dependency for network ICMP operations. Do not introduce new packages.
+
+**Files to Create or Update:**
+
+- [x] Create `lib/features/network/traceroute_service.dart`:
+  - Implement a traceroute by manually looping the `ttl` parameter from 1 up to a maximum of 30.
+  - Send a single ping (`count: 1`) per TTL iteration.
+  - Return a `Stream` of hop results so the UI can update progressively.
+  - Catch `PingError` events (specifically timeouts) gracefully. Yield a "Request timed out" or similar message for that hop without breaking the loop.
+  - Break the loop early if the ping successfully reaches the target destination.
+
+- [x] Update `lib/features/network/network_controller.dart`:
+  - Add state for the Traceroute toggle (alongside Ping and DNS).
+  - Create a `startTraceroute(String host)` method that listens to the `TracerouteService` stream and populates a log list.
+  - Implement strict cancellation logic: track the `StreamSubscription` and ensure any active trace is completely stopped/cancelled if the user clicks "Stop", starts a new trace, or navigates away.
+
+- [x] Update `lib/features/network/network_screen.dart`:
+  - Update the UI controls to include a 3-way selector (e.g., segmented button or radio buttons) for: Ping | DNS | Trace.
+  - Bind the input field and action button to trigger `startTraceroute` when the trace option is selected.
+
+- [x] Update `lib/shared/widgets/terminal_output.dart`:
+  - Ensure the terminal can cleanly render the line-by-line hop data.
+  - Include visual feedback (e.g., a blinking cursor or a "Tracing route to [host]..." header) so the user knows the application is actively waiting for a hop response and hasn't frozen.
+
+## 🚀 Phase 7: Assembly & Final Integration
+
+**Goal:** Tie all the modules together in the main entry point, ensuring the newly expanded network tools (including Traceroute) are properly initialized alongside the other features.
+
+**Context & Rules:**
+
+- Execute this phase by providing the complete, copy-pasteable code for the files requested below.
+- Do not use placeholders. NO AI SLOP.
+- All code must be null-safe and target the latest stable Flutter SDK.
+- Ensure the state management setup correctly supports the expanded `NetworkController`.
+
+**Files to Create or Update:**
+
+- [x] Write `lib/main.dart`:
+  - Initialize the Flutter application (`runApp`).
+  - Wrap `MaterialApp` in a `MultiProvider`.
+  - Inject the three primary controllers at the root level: `NetworkController`, `PasswordController`, and `ConverterController`.
+  - Set the `home` property to the `ResponsiveShell` created in Phase 2.
+  - Apply a clean, utilitarian `ThemeData` (Material 3, Dark Mode by default, with a high-contrast color scheme suitable for developer tools).
+  - Ensure any necessary service instantiations (like `TracerouteService`, `PingService`, `DnsService`) are properly handled within or passed to the `NetworkController`.
