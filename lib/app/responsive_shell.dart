@@ -25,7 +25,7 @@ class _ResponsiveShellState extends State<ResponsiveShell> {
 
   static const _destinations = [
     _Destination(
-      label: 'Networking Hub',
+      label: 'Network',
       mobileLabel: 'Network',
       glyph: '◌',
       screen: NetworkScreen(),
@@ -37,8 +37,8 @@ class _ResponsiveShellState extends State<ResponsiveShell> {
       screen: PasswordScreen(),
     ),
     _Destination(
-      label: 'Encoding Converter',
-      mobileLabel: 'Convert',
+      label: 'Encoding/Decoding',
+      mobileLabel: 'Encoding',
       glyph: '<>',
       screen: ConverterScreen(),
     ),
@@ -152,21 +152,11 @@ class _SidebarBrand extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Network Toolkit',
+          'Network Utility Kit',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Elephant Technology Ltd',
-          style: TextStyle(
-            color: _sidebarMuted,
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
             letterSpacing: 0,
           ),
         ),
@@ -249,7 +239,7 @@ class _SidebarFooter extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Version 1.0',
+          'Elephant Technology Ltd',
           style: TextStyle(
             color: Color(0xFF64748B),
             fontSize: 12,
@@ -257,9 +247,9 @@ class _SidebarFooter extends StatelessWidget {
             letterSpacing: 0,
           ),
         ),
-        SizedBox(height: 8),
+        SizedBox(height: 6),
         Text(
-          'Windows / iOS Ready',
+          'Version 1',
           style: TextStyle(
             color: _sidebarMuted,
             fontSize: 12,

@@ -7,7 +7,7 @@
 
 * **Product Name:** Net Utility Toolkit  
 * **Product Type:** Cross-platform utility application for basic internet/network troubleshooting and everyday technical tools.  
-* **Target Platforms:** Windows desktop (`.exe`), iOS mobile (`.ipa`)  
+* **Target Platforms:** Windows desktop (`.exe`), Linux desktop, iOS mobile (`.ipa`)  
 * **Primary Users:** Employees or customers of an internet/network-related company who need quick-access tools for connectivity checks, DNS records lookups, password generation, and data encoding/hashing.  
 * **Product Goal:** Build a lightweight toolkit that provides essential network and utility functions in one simple app with the least amount of engineering friction. The app focuses on reliable, easy-to-use tools that work consistently across Windows and iOS without attempting to be an enterprise-grade network diagnostics platform.
 
@@ -50,7 +50,7 @@ This app solves the problem by combining these utilities into a single, clean, c
 * **Framework:** Flutter (Stable Channel)
 * **Language:** Dart
 * **Development Environment:** Primary development on Windows first.
-* **Target Builds:** Windows executable (`.exe`), iOS app (`.ipa`)
+* **Target Builds:** Windows executable (`.exe`), Linux desktop (GTK), iOS app (`.ipa`)
 
 ---
 
@@ -78,6 +78,7 @@ dependencies:
 ### 6. Platform Strategy
 
 * **Windows First:** The app will be written, executed, and entirely polished on Windows first. This allows core business logic, UI responsive constraints, local ping commands, and DoH integrations to be finalized before configuring Apple-specific distribution rules.
+* **Linux Desktop:** The Flutter codebase is shared across all platforms. The Linux build uses GTK and requires no additional platform-specific Dart code. Linux users can build via `flutter build linux`.
 * **iOS Second:** The iOS phase begins once the Windows client is functionally feature-complete. This phase focuses purely on Xcode project mapping, handling iOS sandboxing constraints, physical device deployment, and visual layout validation on smaller screens.
 
 ---
@@ -272,4 +273,4 @@ Because the core functional engines behind password derivation and data conversi
 #### Manual Integration Test Cases
 
 * **Network Streams:** Verify that pressing "Stop" during an ongoing ping sequence terminates the underlying native process immediately and resets the button's execution states.
-* **Cross-Platform Responsive Scales:** Validate that resizing a Windows desktop screen downwards shifts UI layers smoothly without clipping layout lines or raising layout overflow banners. Verify same layout performance natively on a physical target iPhone.
+* **Cross-Platform Responsive Scales:** Validate that resizing a Windows or Linux desktop screen downwards shifts UI layers smoothly without clipping layout lines or raising layout overflow banners. Verify same layout performance natively on a physical target iPhone.

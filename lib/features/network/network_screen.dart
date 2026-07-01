@@ -58,7 +58,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
       animation: controller,
       builder: (context, _) {
         return _ToolPage(
-          title: 'Networking Hub',
+          title: 'Network',
           subtitle: 'Ping, Traceroute, DNS look up.',
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -82,7 +82,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
                 children: [
                   SizedBox(width: 420, child: controls),
                   const SizedBox(width: 32),
-                  Expanded(child: output),
+                  SizedBox(width: 420, child: output),
                 ],
               );
             },
@@ -122,7 +122,7 @@ class _ControlsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle('Network Tools'),
+          const _CardTitle('Network'),
           const SizedBox(height: 6),
           const _BodyText('Check host reachability and resolve DNS records.'),
           const SizedBox(height: 28),

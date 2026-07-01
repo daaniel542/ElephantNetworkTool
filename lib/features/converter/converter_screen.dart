@@ -48,7 +48,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
       animation: _controller,
       builder: (context, _) {
         return _ToolPage(
-          title: 'Encoding Converter',
+          title: 'Encoding/Decoding',
           subtitle: 'Encode, decode, and hash text locally.',
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -316,7 +316,7 @@ class _OutputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 260,
+      height: 220,
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(

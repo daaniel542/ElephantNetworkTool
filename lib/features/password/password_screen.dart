@@ -13,8 +13,6 @@ const _muted = Color(0xFF64748B);
 const _label = Color(0xFF334155);
 const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
-const _successBg = Color(0xFFDCFCE7);
-const _successText = Color(0xFF166534);
 
 class PasswordScreen extends StatelessWidget {
   const PasswordScreen({super.key});
@@ -167,18 +165,7 @@ class _GeneratedPasswordCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(child: _CardTitle('Generated Password')),
-              _StatusBadge(
-                label: hasPassword ? 'Strong' : 'Ready',
-                background: hasPassword ? _successBg : const Color(0xFFDBEAFE),
-                foreground: hasPassword
-                    ? _successText
-                    : const Color(0xFF1D4ED8),
-              ),
-            ],
-          ),
+          const _CardTitle('Generated Password'),
           const SizedBox(height: 26),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,38 +564,6 @@ class _OutputField extends StatelessWidget {
           fontSize: 17,
           height: 1.35,
           fontFamily: 'monospace',
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
       ),

@@ -33,7 +33,7 @@ class NetUtilityApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Net Utility Toolkit',
+        title: 'Network Utility Kit',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
