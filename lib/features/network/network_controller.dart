@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'dns_service.dart';
+import 'ping_event.dart';
 import 'ping_service.dart';
 import 'traceroute_service.dart';
 
@@ -11,10 +12,10 @@ enum DnsRecordType { a, aaaa, cname, mx, txt, ns }
 
 enum NetworkToolMode { ping, dns, trace }
 
-/// Controller for the Network Tools screen.
+/// Controller for the Network screen.
 ///
-/// Manages ping state, DNS lookup state, and all user-facing input fields.
-/// Both ping streaming and DNS fetching are coordinated through this class.
+/// Owns UI state, validates inputs, debounces async actions, and translates
+/// typed service results into terminal-friendly lines.
 class NetworkController extends ChangeNotifier {
   NetworkController({
     required PingService pingService,
@@ -69,6 +70,9 @@ class NetworkController extends ChangeNotifier {
   /// Optional error message to display in the DNS panel.
   String? dnsError;
 
+  /// Whether the user has completed at least one DNS lookup in this session.
+  bool hasDnsLookupResult = false;
+
   // -------------------------------------------------------------------------
   // Trace state
   // -------------------------------------------------------------------------
@@ -110,14 +114,32 @@ class NetworkController extends ChangeNotifier {
       return ['Error: $dnsError'];
     }
     if (dnsResults.isEmpty) {
-      return [];
+      if (!hasDnsLookupResult) {
+        return const [];
+      }
+      return [
+        'DNS Lookup',
+        'Domain : ${dnsDomain.trim()}',
+        'Type   : ${dnsRecordType.queryValue}',
+        'Status : No records found',
+        '',
+        'No ${dnsRecordType.queryValue} records found for ${dnsDomain.trim()}.',
+      ];
     }
-    return [
-      'DNS results:',
-      '',
-      for (final record in dnsResults)
-        '${record.type.padRight(6)} ${record.value}  TTL ${record.ttl}',
+
+    final lines = [
+      'DNS Lookup',
+      'Domain : ${dnsDomain.trim()}',
+      'Type   : ${dnsRecordType.queryValue}',
+      'Records: ${dnsResults.length}',
     ];
+
+    for (var i = 0; i < dnsResults.length; i += 1) {
+      lines.add('');
+      lines.addAll(_formatDnsRecord(i + 1, dnsResults[i]));
+    }
+
+    return lines;
   }
 
   List<String> get _traceLines {
@@ -151,6 +173,7 @@ class NetworkController extends ChangeNotifier {
   }
 
   void setDnsRecordType(DnsRecordType value) {
+    if (dnsRecordType == value) return;
     dnsRecordType = value;
     notifyListeners();
   }
@@ -165,29 +188,37 @@ class NetworkController extends ChangeNotifier {
 
   /// Start streaming ping packets to [pingHost].
   Future<void> startPing() async {
-    if (isPinging || pingHost.trim().isEmpty) return;
+    final host = pingHost.trim();
+    if (isPinging) return;
 
     await stopTraceroute(addStopLine: false);
     pingOutput.clear();
     pingError = null;
+
+    if (host.isEmpty) {
+      pingError = 'Ping failed. Please check the host.';
+      notifyListeners();
+      return;
+    }
+
     isPinging = true;
     pingOutput
-      ..add('Pinging ${pingHost.trim()}...')
-      ..add('');
+      ..add('PING $host ($pingCount packets)')
+      ..add('────────────────────────────────────────');
     notifyListeners();
 
     try {
-      await _pingService.ping(
-        host: pingHost.trim(),
+      await for (final event in _pingService.ping(
+        host: host,
         count: pingCount,
-        onResult: (line) {
-          pingOutput.add(line);
-          notifyListeners();
-        },
-      );
-    } catch (e) {
+      )) {
+        pingOutput.addAll(_formatPingEvent(event, host));
+        notifyListeners();
+      }
+    } catch (_) {
       pingError = 'Ping failed. Please check the host.';
     } finally {
+      _pingService.stopPing();
       isPinging = false;
       notifyListeners();
     }
@@ -195,9 +226,11 @@ class NetworkController extends ChangeNotifier {
 
   /// Abort an active ping stream.
   void stopPing() {
-    _pingService.cancel();
+    if (!isPinging) return;
+
+    _pingService.stopPing();
     isPinging = false;
-    pingOutput.add('--- Ping cancelled by user ---');
+    pingOutput.add('--- Ping stopped by user ---');
     notifyListeners();
   }
 
@@ -207,22 +240,35 @@ class NetworkController extends ChangeNotifier {
 
   /// Execute a DNS lookup for [dnsDomain] using [dnsRecordType].
   Future<void> lookupDns() async {
-    if (isDnsLoading || dnsDomain.trim().isEmpty) return;
+    final domain = dnsDomain.trim();
+    if (isDnsLoading) return;
 
     await stopTraceroute(addStopLine: false);
     dnsResults = [];
     dnsError = null;
+    hasDnsLookupResult = false;
+
+    if (domain.isEmpty) {
+      dnsError = 'DNS lookup failed. Please check the domain.';
+      hasDnsLookupResult = true;
+      notifyListeners();
+      return;
+    }
+
     isDnsLoading = true;
     notifyListeners();
 
     try {
       dnsResults = await _dnsService.lookup(
-        domain: dnsDomain.trim(),
+        domain: domain,
         type: dnsRecordType,
       );
+    } on DnsServiceException catch (e) {
+      dnsError = e.message;
     } catch (e) {
-      dnsError = e.toString();
+      dnsError = 'DNS lookup failed. Please check the domain.';
     } finally {
+      hasDnsLookupResult = true;
       isDnsLoading = false;
       notifyListeners();
     }
@@ -232,7 +278,7 @@ class NetworkController extends ChangeNotifier {
     final target = host.trim();
     if (target.isEmpty || isTracing) return;
 
-    _pingService.cancel();
+    _pingService.stopPing();
     await stopTraceroute(addStopLine: false);
 
     traceHost = target;
@@ -292,6 +338,65 @@ class NetworkController extends ChangeNotifier {
     _traceSubscription = null;
   }
 
+  List<String> _formatPingEvent(PingEvent event, String host) {
+    return switch (event) {
+      PingResponse() => [
+        '  ${_padSeq(event.seq)}  ${(event.ip ?? host).padRight(18)}  '
+            '${_formatDurationMs(event.time).padLeft(6)} ms   '
+            'ttl=${event.ttl ?? '?'}',
+      ],
+      PingError() => [
+        '  ${_padSeq(event.seq)}  '
+            '${(event.message ?? 'Ping request failed.').padRight(18)}  '
+            '${event.ip == null ? '' : '(${event.ip})'}',
+      ],
+      PingSummary() => _formatSummary(event),
+    };
+  }
+
+  List<String> _formatSummary(PingSummary summary) {
+    final lines = [
+      '',
+      '────────────────────────────────────────',
+      '  Packets : ${summary.transmitted} sent, '
+          '${summary.received} received, '
+          '${summary.packetLoss.toStringAsFixed(0)}% loss',
+    ];
+
+    final stats = summary.stats;
+    if (stats?.min != null && stats?.avg != null && stats?.max != null) {
+      lines.add(
+        '  Latency : ${_formatDurationMs(stats!.min)} min / '
+        '${_formatDurationMs(stats.avg)} avg / '
+        '${_formatDurationMs(stats.max)} max ms',
+      );
+    } else if (stats?.avg != null) {
+      lines.add('  Latency : ${_formatDurationMs(stats!.avg)} ms avg');
+    }
+    return lines;
+  }
+
+  String _padSeq(int? seq) {
+    if (seq == null) return '  ';
+    return '#${(seq + 1).toString().padLeft(2)}';
+  }
+
+  List<String> _formatDnsRecord(int index, DnsRecord record) {
+    final lines = ['[$index] ${record.type}', '    TTL  : ${record.ttl}'];
+
+    final txtParts = record.type == 'TXT'
+        ? _splitTxtRecord(record.value)
+        : null;
+    if (txtParts == null) {
+      lines.addAll(_formatWrappedField('Value', record.value));
+      return lines;
+    }
+
+    lines.add('    Key  : ${txtParts.key}');
+    lines.addAll(_formatWrappedField('Value', txtParts.value));
+    return lines;
+  }
+
   String _formatTraceHop(TracerouteHop hop) {
     final hopNumber = hop.hopNumber.toString().padLeft(2);
     final address = hop.address ?? '*';
@@ -311,11 +416,67 @@ class NetworkController extends ChangeNotifier {
     return (micros / Duration.microsecondsPerMillisecond).toStringAsFixed(1);
   }
 
+  ({String key, String value})? _splitTxtRecord(String rawValue) {
+    final value = _stripOuterQuotes(rawValue);
+    final separatorIndex = value.indexOf('=');
+    if (separatorIndex <= 0 || separatorIndex == value.length - 1) {
+      return null;
+    }
+
+    return (
+      key: value.substring(0, separatorIndex),
+      value: value.substring(separatorIndex + 1),
+    );
+  }
+
+  String _stripOuterQuotes(String value) {
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      return value.substring(1, value.length - 1);
+    }
+    return value;
+  }
+
+  List<String> _formatWrappedField(String label, String value) {
+    const valueWidth = 72;
+    final valueLines = _wrapText(_stripOuterQuotes(value), valueWidth);
+    return [
+      '    ${label.padRight(5)}: ${valueLines.first}',
+      for (final line in valueLines.skip(1)) '           $line',
+    ];
+  }
+
+  List<String> _wrapText(String value, int width) {
+    if (value.length <= width) return [value];
+
+    final lines = <String>[];
+    final words = value.split(RegExp(r'\s+'));
+    var current = '';
+
+    for (final word in words) {
+      final next = current.isEmpty ? word : '$current $word';
+      if (next.length > width && current.isNotEmpty) {
+        lines.add(current);
+        current = word;
+      } else {
+        current = next;
+      }
+    }
+
+    if (current.isNotEmpty) {
+      lines.add(current);
+    }
+    return lines.isEmpty ? [''] : lines;
+  }
+
   @override
   void dispose() {
-    _pingService.cancel();
+    _pingService.stopPing();
     _traceSubscription?.cancel();
     _tracerouteService.stopTrace();
     super.dispose();
   }
+}
+
+extension on DnsRecordType {
+  String get queryValue => name.toUpperCase();
 }

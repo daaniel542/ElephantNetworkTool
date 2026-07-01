@@ -82,7 +82,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
                 children: [
                   SizedBox(width: 420, child: controls),
                   const SizedBox(width: 32),
-                  SizedBox(width: 420, child: output),
+                  Expanded(child: output),
                 ],
               );
             },

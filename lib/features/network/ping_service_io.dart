@@ -1,53 +1,56 @@
-import 'package:dart_ping/dart_ping.dart';
+import 'package:dart_ping/dart_ping.dart' as dart_ping;
+
+import 'ping_event.dart';
 
 class PingService {
-  Ping? _activePing;
+  dart_ping.Ping? _activePing;
 
-  Future<void> ping({
-    required String host,
-    required int count,
-    required void Function(String line) onResult,
-  }) async {
-    _activePing = Ping(host, count: count);
+  Stream<PingEvent> ping({required String host, required int count}) async* {
+    _activePing = dart_ping.Ping(host, count: count);
 
     await for (final event in _activePing!.stream) {
       switch (event) {
-        case PingResponse():
-          final ip = event.ip ?? host;
-          final ms = event.time?.inMilliseconds ?? '?';
-          final ttl = event.ttl ?? '?';
-          onResult('Reply from $ip: ttl=$ttl time=${ms}ms');
+        case dart_ping.PingResponse():
+          yield PingResponse(
+            seq: event.seq,
+            ip: event.ip,
+            ttl: event.ttl,
+            time: event.time,
+          );
 
-        case PingError():
-          onResult('Error: ${_describeError(event.error)}');
+        case dart_ping.PingError():
+          yield PingError(
+            seq: event.seq,
+            ip: event.ip,
+            message: _describeError(event.error),
+            error: event.error,
+          );
 
-        case PingSummary():
-          final loss =
-              ((event.transmitted - event.received) / event.transmitted * 100)
-                  .toStringAsFixed(0);
-          onResult(
-            '--- $host ping statistics ---\n'
-            '${event.transmitted} packets transmitted, '
-            '${event.received} received, '
-            '$loss% packet loss',
+        case dart_ping.PingSummary():
+          yield PingSummary(
+            transmitted: event.transmitted,
+            received: event.received,
+            stats: PingStats(avg: event.time),
           );
       }
     }
   }
 
-  void cancel() {
+  void stopPing() {
     _activePing?.stop();
     _activePing = null;
   }
 
-  String _describeError(ErrorType error) {
+  void cancel() => stopPing();
+
+  String _describeError(dart_ping.ErrorType error) {
     return switch (error) {
-      ErrorType.requestTimedOut => 'Request timed out.',
-      ErrorType.unknownHost => 'Unknown host.',
-      ErrorType.timeToLiveExceeded => 'Time to live exceeded.',
-      ErrorType.noReply => 'No reply.',
-      ErrorType.noRoute => 'No route to host.',
-      ErrorType.unknown => 'Unknown error.',
+      dart_ping.ErrorType.requestTimedOut => 'Request timed out.',
+      dart_ping.ErrorType.unknownHost => 'Unknown host.',
+      dart_ping.ErrorType.timeToLiveExceeded => 'Time to live exceeded.',
+      dart_ping.ErrorType.noReply => 'No reply.',
+      dart_ping.ErrorType.noRoute => 'No route to host.',
+      dart_ping.ErrorType.unknown => 'Unknown error.',
     };
   }
 }
