@@ -759,7 +759,7 @@ class _StepButton extends StatelessWidget {
   }
 }
 
-class _DnsRecordDropdown extends StatelessWidget {
+class _DnsRecordDropdown extends StatefulWidget {
   const _DnsRecordDropdown({
     required this.value,
     required this.enabled,
@@ -771,93 +771,175 @@ class _DnsRecordDropdown extends StatelessWidget {
   final ValueChanged<DnsRecordType> onChanged;
 
   @override
+  State<_DnsRecordDropdown> createState() => _DnsRecordDropdownState();
+}
+
+class _DnsRecordDropdownState extends State<_DnsRecordDropdown> {
+  bool _isOpen = false;
+
+  void _select(DnsRecordType recordType) {
+    widget.onChanged(recordType);
+    setState(() => _isOpen = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        inputDecorationTheme: const InputDecorationTheme(
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DropdownButtonFrame(
+          width: 180,
+          label: widget.value.name.toUpperCase(),
+          enabled: widget.enabled,
+          isOpen: _isOpen,
+          onTap: widget.enabled
+              ? () => setState(() => _isOpen = !_isOpen)
+              : null,
+        ),
+        if (_isOpen) ...[
+          const SizedBox(height: 8),
+          _InlineOptionPanel(
+            width: 260,
+            children: [
+              for (final recordType in DnsRecordType.values)
+                _InlineOptionButton(
+                  label: recordType.name.toUpperCase(),
+                  selected: recordType == widget.value,
+                  onTap: () => _select(recordType),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InlineOptionPanel extends StatelessWidget {
+  const _InlineOptionPanel({required this.width, required this.children});
+
+  final double width;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: Wrap(spacing: 8, runSpacing: 8, children: children),
+    );
+  }
+}
+
+class _InlineOptionButton extends StatelessWidget {
+  const _InlineOptionButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? _surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? _controlBorder : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? _primary : _label,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                letterSpacing: 0,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.check, color: _primary, size: 15),
+            ],
+          ],
         ),
       ),
-      child: DropdownMenu<DnsRecordType>(
-        initialSelection: value,
-        enabled: enabled,
-        width: 180,
-        menuHeight: 288,
-        requestFocusOnTap: false,
-        enableSearch: false,
-        textStyle: const TextStyle(
-          color: _text,
-          fontSize: 14,
-          letterSpacing: 0,
-        ),
-        trailingIcon: const Icon(
-          Icons.keyboard_arrow_down,
-          color: _muted,
-          size: 18,
-        ),
-        selectedTrailingIcon: const Icon(
-          Icons.keyboard_arrow_up,
-          color: _muted,
-          size: 18,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: _surface,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 14,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: _controlBorder),
-          ),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(
-              color: _controlBorder.withValues(alpha: 0.55),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: _primary),
+    );
+  }
+}
+
+class _DropdownButtonFrame extends StatelessWidget {
+  const _DropdownButtonFrame({
+    required this.width,
+    required this.label,
+    this.enabled = true,
+    this.isOpen = false,
+    this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final bool enabled;
+  final bool isOpen;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        width: width,
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: !enabled
+                ? _controlBorder.withValues(alpha: 0.55)
+                : isOpen
+                ? _primary
+                : _controlBorder,
           ),
         ),
-        menuStyle: MenuStyle(
-          backgroundColor: const WidgetStatePropertyAll(_surface),
-          elevation: const WidgetStatePropertyAll(4),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: const BorderSide(color: _border),
-            ),
-          ),
-        ),
-        dropdownMenuEntries: [
-          for (final recordType in DnsRecordType.values)
-            DropdownMenuEntry<DnsRecordType>(
-              value: recordType,
-              label: recordType.name.toUpperCase(),
-              style: ButtonStyle(
-                foregroundColor: const WidgetStatePropertyAll(_text),
-                textStyle: const WidgetStatePropertyAll(
-                  TextStyle(fontSize: 14, letterSpacing: 0),
-                ),
-                padding: const WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: enabled ? _text : _muted.withValues(alpha: 0.45),
+                  fontSize: 14,
+                  letterSpacing: 0,
                 ),
               ),
             ),
-        ],
-        onSelected: (recordType) {
-          if (recordType != null) {
-            onChanged(recordType);
-          }
-        },
+            Icon(
+              isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              color: enabled ? _muted : _muted.withValues(alpha: 0.45),
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
