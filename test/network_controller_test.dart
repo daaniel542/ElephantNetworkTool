@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dart_ping/dart_ping.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:net_utility_toolkit/features/network/dns_service.dart';
 import 'package:net_utility_toolkit/features/network/network_controller.dart';
@@ -21,9 +20,7 @@ void main() {
           PingSummary(
             transmitted: 1,
             received: 1,
-            stats: RoundTripStats.fromSamples([
-              const Duration(milliseconds: 24),
-            ]),
+            stats: const PingStats(avg: Duration(milliseconds: 24)),
           ),
         ]),
         dnsService: _FakeDnsService(),

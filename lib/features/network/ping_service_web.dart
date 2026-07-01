@@ -1,14 +1,15 @@
+import 'ping_event.dart';
+
 class PingService {
-  Future<void> ping({
-    required String host,
-    required int count,
-    required void Function(String line) onResult,
-  }) async {
-    onResult(
-      'Ping is not available in browser-hosted builds. '
-      'Browsers cannot send ICMP packets; deploy a backend probe service for hosted ping.',
+  Stream<PingEvent> ping({required String host, required int count}) async* {
+    yield const PingError(
+      ErrorType.unknown,
+      message:
+          'Ping is not available in browser-hosted builds. Browsers cannot send ICMP packets; deploy a backend probe service for hosted ping.',
     );
   }
 
-  void cancel() {}
+  void stopPing() {}
+
+  void cancel() => stopPing();
 }

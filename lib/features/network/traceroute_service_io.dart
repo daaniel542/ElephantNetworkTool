@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dart_ping/dart_ping.dart';
+import 'package:dart_ping/dart_ping.dart' as dart_ping;
 
 class TracerouteHop {
   const TracerouteHop({
@@ -18,8 +18,9 @@ class TracerouteHop {
   final bool isDestination;
 }
 
+/// Implements traceroute by sending one ICMP probe per TTL value.
 class TracerouteService {
-  Ping? _activePing;
+  dart_ping.Ping? _activePing;
   bool _isStopped = false;
 
   Stream<TracerouteHop> trace({
@@ -33,14 +34,15 @@ class TracerouteService {
       if (_isStopped) break;
 
       TracerouteHop? hop;
-      _activePing = Ping(host, count: 1, ttl: ttl, timeout: timeout);
+      _activePing = dart_ping.Ping(host, count: 1, ttl: ttl, timeout: timeout);
 
       try {
+        var shouldFinishHop = false;
         await for (final event in _activePing!.stream) {
           if (_isStopped) break;
 
           switch (event) {
-            case PingResponse():
+            case dart_ping.PingResponse():
               hop = TracerouteHop(
                 hopNumber: ttl,
                 address: event.ip ?? host,
@@ -48,22 +50,26 @@ class TracerouteService {
                 message: 'Reached destination',
                 isDestination: true,
               );
-            case PingError():
+              shouldFinishHop = true;
+
+            case dart_ping.PingError():
               hop = _hopFromError(ttl, event);
-            case PingSummary():
+              shouldFinishHop = true;
+
+            case dart_ping.PingSummary():
               hop ??= TracerouteHop(
                 hopNumber: ttl,
                 message: 'Request timed out.',
               );
+              shouldFinishHop = true;
           }
 
-          break;
+          if (shouldFinishHop) {
+            break;
+          }
         }
-      } catch (_) {
-        hop = TracerouteHop(
-          hopNumber: ttl,
-          message: 'Trace failed. Please check the host.',
-        );
+      } catch (error) {
+        hop = TracerouteHop(hopNumber: ttl, message: 'Trace failed: $error');
       } finally {
         final activePing = _activePing;
         _activePing = null;
@@ -75,7 +81,8 @@ class TracerouteService {
         }
       }
 
-      if (_isStopped || hop == null) break;
+      if (_isStopped) break;
+      if (hop == null) continue;
 
       yield hop;
 
@@ -87,7 +94,6 @@ class TracerouteService {
     _isStopped = true;
     final activePing = _activePing;
     _activePing = null;
-
     if (activePing != null) {
       await activePing.stop().timeout(
         const Duration(seconds: 1),
@@ -96,27 +102,30 @@ class TracerouteService {
     }
   }
 
-  TracerouteHop _hopFromError(int ttl, PingError error) {
+  TracerouteHop _hopFromError(int ttl, dart_ping.PingError error) {
     return switch (error.error) {
-      ErrorType.timeToLiveExceeded => TracerouteHop(
+      dart_ping.ErrorType.timeToLiveExceeded => TracerouteHop(
         hopNumber: ttl,
         address: error.ip,
         message: 'TTL exceeded',
       ),
-      ErrorType.requestTimedOut => TracerouteHop(
+      dart_ping.ErrorType.requestTimedOut => TracerouteHop(
         hopNumber: ttl,
         message: 'Request timed out.',
       ),
-      ErrorType.noReply => TracerouteHop(hopNumber: ttl, message: 'No reply.'),
-      ErrorType.noRoute => TracerouteHop(
+      dart_ping.ErrorType.noReply => TracerouteHop(
+        hopNumber: ttl,
+        message: 'No reply.',
+      ),
+      dart_ping.ErrorType.noRoute => TracerouteHop(
         hopNumber: ttl,
         message: 'No route to host.',
       ),
-      ErrorType.unknownHost => TracerouteHop(
+      dart_ping.ErrorType.unknownHost => TracerouteHop(
         hopNumber: ttl,
         message: 'Unknown host.',
       ),
-      ErrorType.unknown => TracerouteHop(
+      dart_ping.ErrorType.unknown => TracerouteHop(
         hopNumber: ttl,
         message: error.message ?? 'Unknown trace error.',
       ),

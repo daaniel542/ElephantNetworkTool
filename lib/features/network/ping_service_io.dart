@@ -1,68 +1,64 @@
-import 'package:dart_ping/dart_ping.dart';
+import 'package:dart_ping/dart_ping.dart' as dart_ping;
 
-/// Wraps the dart_ping package to stream ICMP results back as formatted lines.
+import 'ping_event.dart';
+
+/// Thin wrapper around dart_ping.
 ///
-/// Consumers call [ping] and supply an [onResult] callback that receives each
-/// formatted line as it arrives. Call [cancel] to abort an active stream.
+/// The service owns the active native ping process and exposes app-owned event
+/// types so web builds never import dart_ping or dart:ffi.
 class PingService {
-  Ping? _activePing;
+  dart_ping.Ping? _activePing;
 
-  /// Start pinging [host] for [count] packets.
-  ///
-  /// Each result (reply, timeout, summary) is converted to a human-readable
-  /// line and passed to [onResult]. Throws on unresolvable host.
-  Future<void> ping({
-    required String host,
-    required int count,
-    required void Function(String line) onResult,
-  }) async {
-    _activePing = Ping(host, count: count);
+  Stream<PingEvent> ping({required String host, required int count}) async* {
+    stopPing();
+    _activePing = dart_ping.Ping(host, count: count);
 
     await for (final event in _activePing!.stream) {
-      switch (event) {
-        case PingResponse():
-          final ip = event.ip ?? host;
-          final ms = event.time?.inMilliseconds ?? '?';
-          final ttl = event.ttl ?? '?';
-          onResult('Reply from $ip: ttl=$ttl time=${ms}ms');
-
-        case PingError():
-          onResult('Error: ${_describeError(event.error)}');
-
-        case PingSummary():
-          final loss =
-              ((event.transmitted - event.received) / event.transmitted * 100)
-                  .toStringAsFixed(0);
-          onResult(
-            '--- $host ping statistics ---\n'
-            '${event.transmitted} packets transmitted, '
-            '${event.received} received, '
-            '$loss% packet loss',
-          );
-      }
+      yield switch (event) {
+        dart_ping.PingResponse() => PingResponse(
+          seq: event.seq,
+          ttl: event.ttl,
+          time: event.time,
+          ip: event.ip,
+          stats: _mapStats(event.stats),
+        ),
+        dart_ping.PingError() => PingError(
+          _mapErrorType(event.error),
+          message: event.message,
+          seq: event.seq,
+          ip: event.ip,
+          stats: _mapStats(event.stats),
+        ),
+        dart_ping.PingSummary() => PingSummary(
+          transmitted: event.transmitted,
+          received: event.received,
+          time: event.time,
+          stats: _mapStats(event.stats),
+        ),
+      };
     }
   }
 
-  /// Abort the active ping stream, if any.
-  void cancel() {
+  void stopPing() {
     _activePing?.stop();
     _activePing = null;
   }
 
-  String _describeError(ErrorType error) {
-    switch (error) {
-      case ErrorType.requestTimedOut:
-        return 'Request timed out.';
-      case ErrorType.unknownHost:
-        return 'Unknown host.';
-      case ErrorType.timeToLiveExceeded:
-        return 'Time to live exceeded.';
-      case ErrorType.noReply:
-        return 'No reply.';
-      case ErrorType.noRoute:
-        return 'No route to host.';
-      case ErrorType.unknown:
-        return 'Unknown error.';
-    }
+  void cancel() => stopPing();
+
+  PingStats? _mapStats(dart_ping.RoundTripStats? stats) {
+    if (stats == null) return null;
+    return PingStats(min: stats.min, avg: stats.avg, max: stats.max);
+  }
+
+  ErrorType _mapErrorType(dart_ping.ErrorType error) {
+    return switch (error) {
+      dart_ping.ErrorType.timeToLiveExceeded => ErrorType.timeToLiveExceeded,
+      dart_ping.ErrorType.requestTimedOut => ErrorType.requestTimedOut,
+      dart_ping.ErrorType.unknownHost => ErrorType.unknownHost,
+      dart_ping.ErrorType.noReply => ErrorType.noReply,
+      dart_ping.ErrorType.noRoute => ErrorType.noRoute,
+      dart_ping.ErrorType.unknown => ErrorType.unknown,
+    };
   }
 }

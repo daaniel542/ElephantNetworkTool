@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dart_ping/dart_ping.dart';
 import 'package:flutter/foundation.dart';
 
 import 'dns_service.dart';
