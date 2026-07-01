@@ -27,7 +27,7 @@ class PasswordController extends ChangeNotifier {
   bool useDigits = true;
 
   /// Include special/symbol characters.
-  bool useSymbols = false;
+  bool useSymbols = true;
 
   /// Characters explicitly excluded from the pool. Empty by default.
   String excludedChars = '';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/utils/clipboard_helper.dart';
@@ -12,11 +13,6 @@ const _muted = Color(0xFF64748B);
 const _label = Color(0xFF334155);
 const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
-const _successBg = Color(0xFFDCFCE7);
-const _successText = Color(0xFF166534);
-const _errorBg = Color(0xFFFEF2F2);
-const _errorBorder = Color(0xFFFECACA);
-const _errorText = Color(0xFFB91C1C);
 
 class PasswordScreen extends StatelessWidget {
   const PasswordScreen({super.key});
@@ -28,23 +24,15 @@ class PasswordScreen extends StatelessWidget {
         return _ToolPage(
           title: 'Password Generator',
           subtitle: 'Create secure passwords using local device randomness.',
-          badge: 'Local Tools',
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 920;
               final settings = _PasswordSettingsCard(controller: controller);
               final output = _GeneratedPasswordCard(controller: controller);
-              final validation = _ValidationCard(error: controller.error);
 
               if (!isWide) {
                 return Column(
-                  children: [
-                    settings,
-                    const SizedBox(height: 20),
-                    output,
-                    const SizedBox(height: 20),
-                    validation,
-                  ],
+                  children: [settings, const SizedBox(height: 20), output],
                 );
               }
 
@@ -53,15 +41,7 @@ class PasswordScreen extends StatelessWidget {
                 children: [
                   SizedBox(width: 500, child: settings),
                   const SizedBox(width: 32),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        output,
-                        const SizedBox(height: 32),
-                        validation,
-                      ],
-                    ),
-                  ),
+                  Expanded(child: output),
                 ],
               );
             },
@@ -80,6 +60,7 @@ class _PasswordSettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Card(
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -117,7 +98,10 @@ class _PasswordSettingsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _NumberPill(value: controller.length.toString()),
+              _LengthInput(
+                value: controller.length,
+                onChanged: controller.setLength,
+              ),
             ],
           ),
           const SizedBox(height: 30),
@@ -148,7 +132,7 @@ class _PasswordSettingsCard extends StatelessWidget {
           const SizedBox(height: 8),
           _TextInput(
             initialValue: controller.excludedChars,
-            hintText: 'ex. 0OL1',
+            hintText: 'ex. lIO0',
             onChanged: controller.setExcludedChars,
           ),
           const SizedBox(height: 14),
@@ -177,22 +161,11 @@ class _GeneratedPasswordCard extends StatelessWidget {
     final hasPassword = controller.generatedPassword.isNotEmpty;
 
     return _Card(
-      minHeight: 220,
+      minHeight: 227,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(child: _CardTitle('Generated Password')),
-              _StatusBadge(
-                label: hasPassword ? 'Strong' : 'Ready',
-                background: hasPassword ? _successBg : const Color(0xFFDBEAFE),
-                foreground: hasPassword
-                    ? _successText
-                    : const Color(0xFF1D4ED8),
-              ),
-            ],
-          ),
+          const _CardTitle('Generated Password'),
           const SizedBox(height: 26),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,45 +199,15 @@ class _GeneratedPasswordCard extends StatelessWidget {
   }
 }
 
-class _ValidationCard extends StatelessWidget {
-  const _ValidationCard({required this.error});
-
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      minHeight: 212,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CardTitle('Built-in validation states'),
-          const SizedBox(height: 12),
-          const _BodyText(
-            'Length limits, no character type selected, and exclusion conflicts are handled with friendly inline errors.',
-          ),
-          const SizedBox(height: 28),
-          _ErrorBox(
-            message: error ?? 'Validation messages appear here when needed.',
-            isPlaceholder: error == null,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ToolPage extends StatelessWidget {
   const _ToolPage({
     required this.title,
     required this.subtitle,
-    required this.badge,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final String badge;
   final Widget child;
 
   @override
@@ -307,11 +250,6 @@ class _ToolPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                _StatusBadge(
-                  label: badge,
-                  background: _successBg,
-                  foreground: _successText,
                 ),
               ],
             ),
@@ -428,28 +366,100 @@ class _Caption extends StatelessWidget {
   }
 }
 
-class _NumberPill extends StatelessWidget {
-  const _NumberPill({required this.value});
-  final String value;
+class _LengthInput extends StatefulWidget {
+  const _LengthInput({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_LengthInput> createState() => _LengthInputState();
+}
+
+class _LengthInputState extends State<_LengthInput> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toString());
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LengthInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.value != oldWidget.value && !_focusNode.hasFocus) {
+      _setText(widget.value.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _commit();
+    }
+  }
+
+  void _handleChanged(String rawValue) {
+    final value = int.tryParse(rawValue);
+    if (value == null) {
+      return;
+    }
+
+    widget.onChanged(value.clamp(4, 128));
+  }
+
+  void _commit() {
+    final value = int.tryParse(_controller.text);
+    final normalized = (value ?? widget.value).clamp(4, 128);
+
+    widget.onChanged(normalized);
+    _setText(normalized.toString());
+  }
+
+  void _setText(String value) {
+    _controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 56,
+    return SizedBox(
+      width: 72,
       height: 42,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _controlBorder),
-      ),
-      child: Text(
-        value,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        cursorColor: _primary,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(3),
+        ],
+        onChanged: _handleChanged,
+        onEditingComplete: _commit,
         style: const TextStyle(
           color: _text,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
+        ),
+        decoration: _inputDecoration().copyWith(
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
@@ -554,67 +564,6 @@ class _OutputField extends StatelessWidget {
           fontSize: 17,
           height: 1.35,
           fontFamily: 'monospace',
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBox extends StatelessWidget {
-  const _ErrorBox({required this.message, required this.isPlaceholder});
-
-  final String message;
-  final bool isPlaceholder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: isPlaceholder ? _background : _errorBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isPlaceholder ? _border : _errorBorder),
-      ),
-      child: Text(
-        message,
-        style: TextStyle(
-          color: isPlaceholder ? _muted : _errorText,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
       ),

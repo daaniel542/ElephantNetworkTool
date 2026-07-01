@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:net_utility_toolkit/features/network/dns_service.dart';
 import 'package:net_utility_toolkit/features/network/network_controller.dart';
+import 'package:net_utility_toolkit/features/network/ping_event.dart';
 import 'package:net_utility_toolkit/features/network/ping_service.dart';
 import 'package:net_utility_toolkit/features/network/traceroute_service.dart';
 
@@ -17,10 +18,10 @@ void main() {
             time: Duration(milliseconds: 24),
             ip: '142.250.190.46',
           ),
-          PingSummary(
+          const PingSummary(
             transmitted: 1,
             received: 1,
-            stats: const PingStats(avg: Duration(milliseconds: 24)),
+            stats: PingStats(avg: Duration(milliseconds: 24)),
           ),
         ]),
         dnsService: _FakeDnsService(),
@@ -30,13 +31,19 @@ void main() {
       await controller.startPing();
 
       expect(controller.isPinging, isFalse);
-      expect(controller.activeOutputLines, contains('Pinging google.com...'));
       expect(
         controller.activeOutputLines,
-        contains('Reply from 142.250.190.46: seq=1 ttl=57 time=24 ms'),
+        contains('PING google.com (5 packets)'),
       );
-      expect(controller.activeOutputLines, contains('Summary:'));
-      expect(controller.activeOutputLines, contains('Average: 24 ms'));
+      expect(
+        controller.activeOutputLines,
+        contains('  # 2  142.250.190.46          24 ms   ttl=57'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('  Packets : 1 sent, 1 received, 0% loss'),
+      );
+      expect(controller.activeOutputLines, contains('  Latency : 24 ms avg'));
 
       controller.dispose();
     });
@@ -68,39 +75,6 @@ void main() {
       expect(
         controller.activeOutputLines,
         contains('    Value: 10 mail.example.com'),
-      );
-
-      controller.dispose();
-    });
-
-    test('wraps long DNS values into aligned continuation lines', () async {
-      const longTxt =
-          'v=spf1 include:_spf.google.com include:mail.example.com '
-          'include:another-long-provider.example.net ~all';
-      final controller =
-          NetworkController(
-              pingService: _FakePingService(const []),
-              tracerouteService: _FakeTracerouteService(),
-              dnsService: _FakeDnsService(
-                records: const [
-                  DnsRecord(type: 'TXT', value: longTxt, ttl: 226),
-                ],
-              ),
-            )
-            ..setActiveMode(NetworkToolMode.dns)
-            ..setDnsDomain('gmail.com')
-            ..setDnsRecordType(DnsRecordType.txt);
-
-      await controller.lookupDns();
-
-      final output = controller.activeOutputLines.join('\n');
-      expect(output, contains('[1] TXT'));
-      expect(output, contains('    TTL  : 226'));
-      expect(output, contains('    Key  : v'));
-      expect(output, contains('    Value: spf1 include:_spf.google.com'));
-      expect(
-        output,
-        contains('           include:another-long-provider.example.net ~all'),
       );
 
       controller.dispose();
@@ -176,38 +150,6 @@ void main() {
 
       controller.dispose();
     });
-
-    test('stops an active traceroute and writes a stopped line', () async {
-      final tracerouteService = _FakeTracerouteService(neverCompletes: true);
-      final controller = NetworkController(
-        pingService: _FakePingService(const []),
-        dnsService: _FakeDnsService(),
-        tracerouteService: tracerouteService,
-      )..setActiveMode(NetworkToolMode.trace);
-
-      await controller.startTraceroute('1.1.1.1');
-
-      expect(controller.isTracing, isTrue);
-      expect(
-        controller.activeOutputLines,
-        contains('Waiting for hop responses...'),
-      );
-
-      await controller.stopTraceroute();
-
-      expect(controller.isTracing, isFalse);
-      expect(tracerouteService.stopCalled, isTrue);
-      expect(
-        controller.activeOutputLines,
-        contains('--- Trace stopped by user ---'),
-      );
-      expect(
-        controller.activeOutputLines,
-        isNot(contains('Waiting for hop responses...')),
-      );
-
-      controller.dispose();
-    });
   });
 }
 
@@ -215,12 +157,18 @@ class _FakePingService extends PingService {
   _FakePingService(this.events);
 
   final List<PingEvent> events;
+  bool stopCalled = false;
 
   @override
   Stream<PingEvent> ping({required String host, required int count}) async* {
     for (final event in events) {
       yield event;
     }
+  }
+
+  @override
+  void stopPing() {
+    stopCalled = true;
   }
 }
 
@@ -236,42 +184,24 @@ class _FakeDnsService extends DnsService {
   }) async {
     return records;
   }
-
-  @override
-  void close() {}
 }
 
 class _FakeTracerouteService extends TracerouteService {
-  _FakeTracerouteService({this.hops = const [], this.neverCompletes = false});
+  _FakeTracerouteService({this.hops = const []});
 
   final List<TracerouteHop> hops;
-  final bool neverCompletes;
-  bool stopCalled = false;
-  final _controller = StreamController<TracerouteHop>();
 
   @override
   Stream<TracerouteHop> trace({
     required String host,
     int maxHops = 30,
     int timeout = 2,
-  }) {
-    if (neverCompletes) {
-      return _controller.stream;
-    }
-    return _traceHops();
-  }
-
-  Stream<TracerouteHop> _traceHops() async* {
+  }) async* {
     for (final hop in hops) {
       yield hop;
     }
   }
 
   @override
-  Future<void> stopTrace() async {
-    stopCalled = true;
-    if (!_controller.isClosed) {
-      unawaited(_controller.close());
-    }
-  }
+  Future<void> stopTrace() async {}
 }

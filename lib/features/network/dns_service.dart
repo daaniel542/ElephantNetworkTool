@@ -2,19 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Supported DNS record types per PRD section 10.1.
-enum DnsRecordType {
-  a('A'),
-  aaaa('AAAA'),
-  cname('CNAME'),
-  mx('MX'),
-  txt('TXT'),
-  ns('NS');
-
-  const DnsRecordType(this.queryValue);
-
-  final String queryValue;
-}
+import 'network_controller.dart';
 
 /// A single DNS answer record returned by the Cloudflare DoH API.
 class DnsRecord {
@@ -25,6 +13,15 @@ class DnsRecord {
   final int ttl;
 
   String get formatted => '$type  $value  TTL $ttl';
+}
+
+class DnsServiceException implements Exception {
+  const DnsServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class DnsServiceException implements Exception {
@@ -51,13 +48,17 @@ class DnsService {
     required String domain,
     required DnsRecordType type,
   }) async {
-    final cleanDomain = _cleanDomain(domain);
+    // Strip accidental protocol schemas and trim whitespace.
+    final cleanDomain = domain
+        .replaceAll(RegExp(r'^https?://'), '')
+        .replaceAll(RegExp(r'^www\.'), '')
+        .trim();
 
-    final uri = Uri.parse(
-      _baseUrl,
-    ).replace(queryParameters: {'name': cleanDomain, 'type': type.queryValue});
+    final uri = Uri.parse(_baseUrl).replace(
+      queryParameters: {'name': cleanDomain, 'type': type.name.toUpperCase()},
+    );
 
-    final http.Response response;
+    late http.Response response;
     try {
       response = await _client.get(
         uri,

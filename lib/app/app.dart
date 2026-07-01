@@ -33,77 +33,26 @@ class NetUtilityApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Net Utility Toolkit',
+        title: 'Network Utility Kit',
         debugShowCheckedModeBanner: false,
-        theme: _buildTheme(Brightness.dark),
-        darkTheme: _buildTheme(Brightness.dark),
-        themeMode: ThemeMode.dark,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2563EB),
+            brightness: Brightness.light,
+          ),
+          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+          useMaterial3: true,
+        ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2563EB),
+            brightness: Brightness.light,
+          ),
+          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+          useMaterial3: true,
+        ),
+        themeMode: ThemeMode.light,
         home: const ResponsiveShell(),
-      ),
-    );
-  }
-
-  ThemeData _buildTheme(Brightness brightness) {
-    const primary = Color(0xFF2563EB);
-    const darkNavy = Color(0xFF0F172A);
-    const darkerNavy = Color(0xFF020617);
-    const muted = Color(0xFF94A3B8);
-
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: brightness,
-    );
-
-    return ThemeData(
-      colorScheme: colorScheme.copyWith(
-        primary: primary,
-        surface: darkNavy,
-        onSurface: Colors.white,
-        surfaceContainer: darkNavy,
-        surfaceContainerHighest: const Color(0xFF1E293B),
-        outline: const Color(0xFF334155),
-      ),
-      useMaterial3: true,
-      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-      visualDensity: VisualDensity.standard,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: darkNavy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: darkerNavy,
-        selectedIconTheme: IconThemeData(color: primary),
-        unselectedIconTheme: IconThemeData(color: muted),
-        selectedLabelTextStyle: TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
-        unselectedLabelTextStyle: TextStyle(
-          color: muted,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0,
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: darkerNavy,
-        indicatorColor: primary.withValues(alpha: 0.18),
-        iconTheme: WidgetStateProperty.resolveWith(
-          (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? primary : muted,
-          ),
-        ),
-        labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            color: states.contains(WidgetState.selected) ? Colors.white : muted,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-        ),
       ),
     );
   }

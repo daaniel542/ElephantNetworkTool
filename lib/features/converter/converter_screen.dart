@@ -14,11 +14,6 @@ const _muted = Color(0xFF64748B);
 const _label = Color(0xFF334155);
 const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
-const _successBg = Color(0xFFDCFCE7);
-const _successText = Color(0xFF166534);
-const _infoBg = Color(0xFFEFF6FF);
-const _infoBorder = Color(0xFFBFDBFE);
-const _infoText = Color(0xFF1D4ED8);
 const _errorBg = Color(0xFFFEF2F2);
 const _errorBorder = Color(0xFFFECACA);
 const _errorText = Color(0xFFB91C1C);
@@ -58,9 +53,8 @@ class _ConverterScreenState extends State<ConverterScreen> {
       animation: controller,
       builder: (context, _) {
         return _ToolPage(
-          title: 'Encoding Converter',
+          title: 'Encoding/Decoding',
           subtitle: 'Encode, decode, and hash text locally.',
-          badge: 'Local Tools',
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
@@ -101,7 +95,7 @@ class _InputCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Card(
-      minHeight: 520,
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -149,13 +143,15 @@ class _OutputCard extends StatelessWidget {
         : controller.outputText;
 
     return _Card(
-      minHeight: 520,
+      minHeight: 640,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _CardTitle('Output'),
           const SizedBox(height: 6),
-          const _BodyText('Copy-friendly results. No server processing.'),
+          const _BodyText(
+            'Copy-friendly results. All Hashing/Encoding/Decoding is done locally.',
+          ),
           const SizedBox(height: 34),
           _OutputArea(
             text: output,
@@ -173,10 +169,6 @@ class _OutputCard extends StatelessWidget {
                     controller.outputText,
                   ),
           ),
-          const SizedBox(height: 64),
-          const _InfoBox(
-            'Conversion and hashing happen locally on your device.',
-          ),
         ],
       ),
     );
@@ -187,13 +179,11 @@ class _ToolPage extends StatelessWidget {
   const _ToolPage({
     required this.title,
     required this.subtitle,
-    required this.badge,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final String badge;
   final Widget child;
 
   @override
@@ -237,7 +227,6 @@ class _ToolPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusBadge(label: badge),
               ],
             ),
           ),
@@ -311,7 +300,7 @@ class _TextArea extends StatelessWidget {
         decoration: _inputDecoration(
           borderRadius: 12,
           contentPadding: const EdgeInsets.all(18),
-          hintText: 'hello internet',
+          hintText: 'ex. hello internet',
         ),
       ),
     );
@@ -332,7 +321,7 @@ class _OutputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 260,
+      height: 220,
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -371,65 +360,159 @@ class _OperationDropdown extends StatefulWidget {
 }
 
 class _OperationDropdownState extends State<_OperationDropdown> {
-  late ConverterOperation _value = widget.value;
+  bool _isOpen = false;
 
-  @override
-  void didUpdateWidget(covariant _OperationDropdown oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _value = widget.value;
+  void _select(ConverterOperation operation) {
+    widget.onChanged(operation);
+    setState(() => _isOpen = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
-      height: 46,
-      child: DropdownButtonFormField<ConverterOperation>(
-        initialValue: _value,
-        items: ConverterOperation.values
-            .map(
-              (operation) => DropdownMenuItem<ConverterOperation>(
-                value: operation,
-                child: Text(_operationLabel(operation)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DropdownButtonFrame(
+          width: 260,
+          label: _operationLabel(widget.value),
+          isOpen: _isOpen,
+          onTap: () => setState(() => _isOpen = !_isOpen),
+        ),
+        if (_isOpen) ...[
+          const SizedBox(height: 8),
+          _InlineOptionPanel(
+            width: 360,
+            children: [
+              for (final operation in ConverterOperation.values)
+                _InlineOptionButton(
+                  label: _operationLabel(operation),
+                  selected: operation == widget.value,
+                  onTap: () => _select(operation),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InlineOptionPanel extends StatelessWidget {
+  const _InlineOptionPanel({required this.width, required this.children});
+
+  final double width;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: Wrap(spacing: 8, runSpacing: 8, children: children),
+    );
+  }
+}
+
+class _InlineOptionButton extends StatelessWidget {
+  const _InlineOptionButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? _surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? _controlBorder : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? _primary : _label,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                letterSpacing: 0,
               ),
-            )
-            .toList(),
-        onChanged: (operation) {
-          if (operation == null) return;
-          setState(() => _value = operation);
-          widget.onChanged(operation);
-        },
-        icon: const Icon(Icons.keyboard_arrow_down, color: _muted, size: 18),
-        dropdownColor: _surface,
-        style: const TextStyle(color: _text, fontSize: 14, letterSpacing: 0),
-        decoration: _inputDecoration(),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.check, color: _primary, size: 15),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InfoBox extends StatelessWidget {
-  const _InfoBox(this.text);
-  final String text;
+class _DropdownButtonFrame extends StatelessWidget {
+  const _DropdownButtonFrame({
+    required this.width,
+    required this.label,
+    required this.isOpen,
+    required this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final bool isOpen;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: _infoBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _infoBorder),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: _infoText,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          height: 1.3,
-          letterSpacing: 0,
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        width: width,
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isOpen ? _primary : _controlBorder),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _text,
+                  fontSize: 14,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            Icon(
+              isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              color: _muted,
+              size: 18,
+            ),
+          ],
         ),
       ),
     );
@@ -485,31 +568,6 @@ class _FieldLabel extends StatelessWidget {
         fontSize: 13,
         fontWeight: FontWeight.w500,
         letterSpacing: 0,
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: _successBg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: _successText,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-        ),
       ),
     );
   }
@@ -620,7 +678,11 @@ InputDecoration _inputDecoration({
 }) {
   return InputDecoration(
     hintText: hintText,
-    hintStyle: const TextStyle(color: _muted),
+    hintStyle: TextStyle(
+      color: _muted.withValues(alpha: 0.62),
+      fontSize: 14,
+      letterSpacing: 0,
+    ),
     filled: true,
     fillColor: _surface,
     isDense: true,

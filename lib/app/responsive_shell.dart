@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+
+import '../features/converter/converter_screen.dart';
 import '../features/network/network_screen.dart';
 import '../features/password/password_screen.dart';
-import '../features/converter/converter_screen.dart';
 
-/// Width at which the layout switches from mobile bottom-nav to desktop rail.
 const double _kDesktopBreakpoint = 720.0;
+const _background = Color(0xFFF8FAFC);
+const _sidebar = Color(0xFF0F172A);
+const _sidebarActive = Color(0xFF1E293B);
+const _primary = Color(0xFF2563EB);
+const _activeIcon = Color(0xFF60A5FA);
+const _sidebarMuted = Color(0xFF94A3B8);
+const _sidebarText = Color(0xFFCBD5E1);
 
-/// Top-level responsive layout shell.
-///
-/// On wide screens (≥ [_kDesktopBreakpoint]) it renders a persistent
-/// [NavigationRail] on the left. On narrow screens it shows a [NavigationBar]
-/// at the bottom. The active screen fills the remaining space.
 class ResponsiveShell extends StatefulWidget {
   const ResponsiveShell({super.key});
 
@@ -22,150 +24,318 @@ class _ResponsiveShellState extends State<ResponsiveShell> {
   int _selectedIndex = 0;
 
   static const _destinations = [
-    (label: 'Network Tools', icon: Icons.wifi_outlined, selectedIcon: Icons.wifi),
-    (label: 'Password Gen', icon: Icons.lock_outlined, selectedIcon: Icons.lock),
-    (label: 'Encoding', icon: Icons.code_outlined, selectedIcon: Icons.code),
+    _Destination(
+      label: 'Network',
+      mobileLabel: 'Network',
+      glyph: '◌',
+      screen: NetworkScreen(),
+    ),
+    _Destination(
+      label: 'Password Generator',
+      mobileLabel: 'Password',
+      glyph: '▣',
+      screen: PasswordScreen(),
+    ),
+    _Destination(
+      label: 'Encoding/Decoding',
+      mobileLabel: 'Encoding',
+      glyph: '<>',
+      screen: ConverterScreen(),
+    ),
   ];
 
-  // Screens are instantiated once here. Controllers are obtained via
-  // Provider.of<T> inside each screen — no need to pass them as constructor
-  // arguments, which also means this list does not need to be const.
-  final _screens = const [
-    NetworkScreen(),
-    PasswordScreen(),
-    ConverterScreen(),
-  ];
-
-  void _onDestinationSelected(int index) =>
-      setState(() => _selectedIndex = index);
+  void _onDestinationSelected(int index) {
+    setState(() => _selectedIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= _kDesktopBreakpoint) {
-          return _DesktopScaffold(
-            destinations: _destinations,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onDestinationSelected,
-            child: _screens[_selectedIndex],
+          return Scaffold(
+            body: Row(
+              children: [
+                _DesktopSidebar(
+                  selectedIndex: _selectedIndex,
+                  onSelected: _onDestinationSelected,
+                ),
+                Expanded(child: _destinations[_selectedIndex].screen),
+              ],
+            ),
           );
         }
-        return _MobileScaffold(
-          destinations: _destinations,
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onDestinationSelected,
-          child: _screens[_selectedIndex],
+
+        return Scaffold(
+          backgroundColor: _background,
+          body: _destinations[_selectedIndex].screen,
+          bottomNavigationBar: _MobileNav(
+            selectedIndex: _selectedIndex,
+            onSelected: _onDestinationSelected,
+          ),
         );
       },
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Desktop — NavigationRail sidebar
-// ---------------------------------------------------------------------------
-
-class _DesktopScaffold extends StatelessWidget {
-  const _DesktopScaffold({
-    required this.destinations,
-    required this.selectedIndex,
-    required this.onDestinationSelected,
-    required this.child,
+class _Destination {
+  const _Destination({
+    required this.label,
+    required this.mobileLabel,
+    required this.glyph,
+    required this.screen,
   });
 
-  final List<({String label, IconData icon, IconData selectedIcon})> destinations;
+  final String label;
+  final String mobileLabel;
+  final String glyph;
+  final Widget screen;
+}
+
+class _DesktopSidebar extends StatelessWidget {
+  const _DesktopSidebar({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
   final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final Widget child;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            extended: true,
-            minExtendedWidth: 210,
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            leading: const _AppLogo(),
-            destinations: destinations
-                .map((d) => NavigationRailDestination(
-                      icon: Icon(d.icon),
-                      selectedIcon: Icon(d.selectedIcon),
-                      label: Text(d.label),
-                    ))
-                .toList(),
+    return Container(
+      width: 260,
+      color: _sidebar,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 26, 16, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: _SidebarBrand(),
+              ),
+              const SizedBox(height: 42),
+              for (
+                var index = 0;
+                index < _ResponsiveShellState._destinations.length;
+                index += 1
+              ) ...[
+                _SidebarItem(
+                  destination: _ResponsiveShellState._destinations[index],
+                  selected: selectedIndex == index,
+                  onTap: () => onSelected(index),
+                ),
+                const SizedBox(height: 12),
+              ],
+              const Spacer(),
+              const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: _SidebarFooter(),
+              ),
+            ],
           ),
-          const VerticalDivider(width: 1, thickness: 1),
-          Expanded(child: child),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Mobile — NavigationBar at the bottom
-// ---------------------------------------------------------------------------
+class _SidebarBrand extends StatelessWidget {
+  const _SidebarBrand();
 
-class _MobileScaffold extends StatelessWidget {
-  const _MobileScaffold({
-    required this.destinations,
-    required this.selectedIndex,
-    required this.onDestinationSelected,
-    required this.child,
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Network Utility Kit',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
   });
 
-  final List<({String label, IconData icon, IconData selectedIcon})> destinations;
-  final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final Widget child;
+  final _Destination destination;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: destinations
-            .map((d) => NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label,
-                ))
-            .toList(),
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: selected ? _sidebarActive : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected ? _primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 24,
+              child: Text(
+                destination.glyph,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: selected ? _activeIcon : _sidebarMuted,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                destination.label,
+                style: TextStyle(
+                  color: selected ? Colors.white : _sidebarText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// App logo / brand mark in the sidebar header
-// ---------------------------------------------------------------------------
-
-class _AppLogo extends StatelessWidget {
-  const _AppLogo();
+class _SidebarFooter extends StatelessWidget {
+  const _SidebarFooter();
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Row(
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Elephant Technology Ltd',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 0,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Version 1',
+          style: TextStyle(
+            color: _sidebarMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MobileNav extends StatelessWidget {
+  const _MobileNav({required this.selectedIndex, required this.onSelected});
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 84,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            for (
+              var index = 0;
+              index < _ResponsiveShellState._destinations.length;
+              index += 1
+            )
+              Expanded(
+                child: _MobileNavItem(
+                  destination: _ResponsiveShellState._destinations[index],
+                  selected: selectedIndex == index,
+                  onTap: () => onSelected(index),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileNavItem extends StatelessWidget {
+  const _MobileNavItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _Destination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? _primary : _sidebarMuted;
+
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.router_outlined, color: color, size: 22),
-          const SizedBox(width: 10),
           Text(
-            'Net Utility\nToolkit',
+            destination.glyph,
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-              height: 1.4,
               color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            destination.mobileLabel,
+            style: TextStyle(
+              color: selected ? const Color(0xFF0F172A) : _sidebarMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
             ),
           ),
         ],

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/utils/clipboard_helper.dart';
-import '../../shared/widgets/terminal_output.dart';
-import 'dns_service.dart';
 import 'network_controller.dart';
 
 const _background = Color(0xFFF8FAFC);
@@ -14,8 +13,9 @@ const _muted = Color(0xFF64748B);
 const _label = Color(0xFF334155);
 const _border = Color(0xFFE2E8F0);
 const _controlBorder = Color(0xFFCBD5E1);
-const _successBg = Color(0xFFDCFCE7);
-const _successText = Color(0xFF166534);
+const _terminal = Color(0xFF020617);
+const _terminalMuted = Color(0xFF94A3B8);
+const _terminalText = Color(0xFFE2E8F0);
 
 class NetworkScreen extends StatefulWidget {
   const NetworkScreen({super.key});
@@ -58,9 +58,8 @@ class _NetworkScreenState extends State<NetworkScreen> {
       animation: controller,
       builder: (context, _) {
         return _ToolPage(
-          title: 'Network Tools',
-          subtitle: 'Run basic internet diagnostics from one simple place.',
-          badge: 'Local Tools',
+          title: 'Network',
+          subtitle: 'Ping, Traceroute, DNS look up.',
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
@@ -119,11 +118,11 @@ class _ControlsCard extends StatelessWidget {
         : traceHostController;
 
     return _Card(
-      minHeight: 520,
+      minHeight: 660,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle('Network Tools'),
+          const _CardTitle('Network'),
           const SizedBox(height: 6),
           const _BodyText('Check host reachability and resolve DNS records.'),
           const SizedBox(height: 28),
@@ -136,7 +135,7 @@ class _ControlsCard extends StatelessWidget {
           const SizedBox(height: 8),
           _TextInput(
             controller: textController,
-            hintText: 'google.com',
+            hintText: isTrace ? 'ex. 8.8.8.8' : 'ex. google.com',
             enabled: !controller.isBusy,
             onChanged: (value) {
               if (isPing) {
@@ -152,17 +151,10 @@ class _ControlsCard extends StatelessWidget {
           if (isPing) ...[
             const _FieldLabel('Ping Count'),
             const SizedBox(height: 8),
-            _Dropdown<int>(
-              width: 160,
+            _PingCountInput(
               value: controller.pingCount,
-              values: const [4, 5, 10, 20],
-              labelFor: (value) => value.toString(),
               enabled: !controller.isPinging,
-              onChanged: (value) {
-                if (value != null) {
-                  controller.setPingCount(value);
-                }
-              },
+              onChanged: controller.setPingCount,
             ),
             const SizedBox(height: 36),
             Wrap(
@@ -190,17 +182,10 @@ class _ControlsCard extends StatelessWidget {
           ] else if (isDns) ...[
             const _FieldLabel('Record Type'),
             const SizedBox(height: 8),
-            _Dropdown<DnsRecordType>(
-              width: 180,
+            _DnsRecordDropdown(
               value: controller.dnsRecordType,
-              values: DnsRecordType.values,
-              labelFor: (value) => value.name.toUpperCase(),
               enabled: !controller.isDnsLoading,
-              onChanged: (value) {
-                if (value != null) {
-                  controller.setDnsRecordType(value);
-                }
-              },
+              onChanged: controller.setDnsRecordType,
             ),
             const SizedBox(height: 36),
             _PrimaryButton(
@@ -216,7 +201,7 @@ class _ControlsCard extends StatelessWidget {
             ),
           ] else if (isTrace) ...[
             const _BodyText(
-              'Trace the route by probing each hop with increasing TTL values.',
+              'Trace routes to hostnames or IP addresses by probing each hop.',
             ),
             const SizedBox(height: 36),
             Wrap(
@@ -265,7 +250,7 @@ class _OutputCard extends StatelessWidget {
     final outputText = controller.activeOutputText;
 
     return _Card(
-      minHeight: 520,
+      minHeight: 660,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -295,13 +280,11 @@ class _ToolPage extends StatelessWidget {
   const _ToolPage({
     required this.title,
     required this.subtitle,
-    required this.badge,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final String badge;
   final Widget child;
 
   @override
@@ -345,7 +328,6 @@ class _ToolPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusBadge(label: badge),
               ],
             ),
           ),
@@ -412,7 +394,7 @@ class _SegmentedControl extends StatelessWidget {
             onTap: () => onChanged(NetworkToolMode.ping),
           ),
           _SegmentButton(
-            label: 'DNS',
+            label: 'DNS Lookup',
             selected: mode == NetworkToolMode.dns,
             onTap: () => onChanged(NetworkToolMode.dns),
           ),
@@ -461,6 +443,56 @@ class _SegmentButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _Terminal extends StatelessWidget {
+  const _Terminal({required this.lines});
+
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 480,
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: _terminal,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Live Output',
+            style: TextStyle(
+              color: _terminalMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: SingleChildScrollView(
+              child: SelectableText(
+                lines.isEmpty
+                    ? 'No results yet. Enter input and run the tool.'
+                    : lines.join('\n'),
+                style: TextStyle(
+                  color: lines.isEmpty ? _terminalMuted : _terminalText,
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  height: 1.45,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -564,87 +596,349 @@ class _TextInput extends StatelessWidget {
   }
 }
 
-class _Dropdown<T> extends StatefulWidget {
-  const _Dropdown({
-    required this.width,
+class _PingCountInput extends StatefulWidget {
+  const _PingCountInput({
     required this.value,
-    required this.values,
-    required this.labelFor,
     required this.enabled,
     required this.onChanged,
   });
 
-  final double width;
-  final T value;
-  final List<T> values;
-  final String Function(T value) labelFor;
+  final int value;
   final bool enabled;
-  final ValueChanged<T?> onChanged;
+  final ValueChanged<int> onChanged;
 
   @override
-  State<_Dropdown<T>> createState() => _DropdownState<T>();
+  State<_PingCountInput> createState() => _PingCountInputState();
 }
 
-class _DropdownState<T> extends State<_Dropdown<T>> {
-  late T _value = widget.value;
+class _PingCountInputState extends State<_PingCountInput> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
 
   @override
-  void didUpdateWidget(covariant _Dropdown<T> oldWidget) {
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toString());
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PingCountInput oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _value = widget.value;
+    if (widget.value != oldWidget.value && !_focusNode.hasFocus) {
+      _setText(widget.value.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _commit();
+    }
+  }
+
+  void _step(int delta) {
+    if (!widget.enabled) return;
+    final next = (widget.value + delta).clamp(1, 20);
+    widget.onChanged(next);
+    _setText(next.toString());
+  }
+
+  void _handleChanged(String rawValue) {
+    final value = int.tryParse(rawValue);
+    if (value == null) return;
+    widget.onChanged(value.clamp(1, 20));
+  }
+
+  void _commit() {
+    final value = int.tryParse(_controller.text);
+    final normalized = (value ?? widget.value).clamp(1, 20);
+    widget.onChanged(normalized);
+    _setText(normalized.toString());
+  }
+
+  void _setText(String value) {
+    _controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: widget.width,
+      width: 180,
       height: 46,
-      child: DropdownButtonFormField<T>(
-        initialValue: _value,
-        items: widget.values
-            .map(
-              (value) => DropdownMenuItem<T>(
-                value: value,
-                child: Text(widget.labelFor(value)),
+      child: Row(
+        children: [
+          _StepButton(
+            icon: Icons.remove,
+            enabled: widget.enabled && widget.value > 1,
+            onPressed: () => _step(-1),
+          ),
+          SizedBox(
+            width: 68,
+            height: 46,
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              enabled: widget.enabled,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              cursorColor: _primary,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(2),
+              ],
+              onChanged: _handleChanged,
+              onEditingComplete: _commit,
+              style: const TextStyle(
+                color: _text,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
               ),
-            )
-            .toList(),
-        onChanged: widget.enabled
-            ? (value) {
-                if (value != null) {
-                  setState(() => _value = value);
-                }
-                widget.onChanged(value);
-              }
-            : null,
-        icon: const Icon(Icons.keyboard_arrow_down, color: _muted, size: 18),
-        dropdownColor: _surface,
-        style: const TextStyle(color: _text, fontSize: 14, letterSpacing: 0),
-        decoration: _inputDecoration(),
+              decoration: _inputDecoration().copyWith(
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+            ),
+          ),
+          _StepButton(
+            icon: Icons.add,
+            enabled: widget.enabled && widget.value < 20,
+            onPressed: () => _step(1),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-  final String label;
+class _StepButton extends StatelessWidget {
+  const _StepButton({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      height: 46,
+      child: OutlinedButton(
+        onPressed: enabled ? onPressed : null,
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          foregroundColor: _label,
+          disabledForegroundColor: _muted.withValues(alpha: 0.45),
+          side: BorderSide(
+            color: enabled
+                ? _controlBorder
+                : _controlBorder.withValues(alpha: 0.55),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        child: Icon(icon, size: 18),
+      ),
+    );
+  }
+}
+
+class _DnsRecordDropdown extends StatefulWidget {
+  const _DnsRecordDropdown({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final DnsRecordType value;
+  final bool enabled;
+  final ValueChanged<DnsRecordType> onChanged;
+
+  @override
+  State<_DnsRecordDropdown> createState() => _DnsRecordDropdownState();
+}
+
+class _DnsRecordDropdownState extends State<_DnsRecordDropdown> {
+  bool _isOpen = false;
+
+  void _select(DnsRecordType recordType) {
+    widget.onChanged(recordType);
+    setState(() => _isOpen = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DropdownButtonFrame(
+          width: 180,
+          label: widget.value.name.toUpperCase(),
+          enabled: widget.enabled,
+          isOpen: _isOpen,
+          onTap: widget.enabled
+              ? () => setState(() => _isOpen = !_isOpen)
+              : null,
+        ),
+        if (_isOpen) ...[
+          const SizedBox(height: 8),
+          _InlineOptionPanel(
+            width: 260,
+            children: [
+              for (final recordType in DnsRecordType.values)
+                _InlineOptionButton(
+                  label: recordType.name.toUpperCase(),
+                  selected: recordType == widget.value,
+                  onTap: () => _select(recordType),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InlineOptionPanel extends StatelessWidget {
+  const _InlineOptionPanel({required this.width, required this.children});
+
+  final double width;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      width: width,
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: _successBg,
-        borderRadius: BorderRadius.circular(999),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: _successText,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
+      child: Wrap(spacing: 8, runSpacing: 8, children: children),
+    );
+  }
+}
+
+class _InlineOptionButton extends StatelessWidget {
+  const _InlineOptionButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? _surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? _controlBorder : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? _primary : _label,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                letterSpacing: 0,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.check, color: _primary, size: 15),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DropdownButtonFrame extends StatelessWidget {
+  const _DropdownButtonFrame({
+    required this.width,
+    required this.label,
+    this.enabled = true,
+    this.isOpen = false,
+    this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final bool enabled;
+  final bool isOpen;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        width: width,
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: !enabled
+                ? _controlBorder.withValues(alpha: 0.55)
+                : isOpen
+                ? _primary
+                : _controlBorder,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: enabled ? _text : _muted.withValues(alpha: 0.45),
+                  fontSize: 14,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            Icon(
+              isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              color: enabled ? _muted : _muted.withValues(alpha: 0.45),
+              size: 18,
+            ),
+          ],
         ),
       ),
     );
@@ -748,7 +1042,11 @@ class _SecondaryButton extends StatelessWidget {
 InputDecoration _inputDecoration({String? hintText}) {
   return InputDecoration(
     hintText: hintText,
-    hintStyle: const TextStyle(color: _muted),
+    hintStyle: TextStyle(
+      color: _muted.withValues(alpha: 0.62),
+      fontSize: 14,
+      letterSpacing: 0,
+    ),
     filled: true,
     fillColor: _surface,
     isDense: true,
