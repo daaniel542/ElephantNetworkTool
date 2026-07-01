@@ -1,0 +1,11 @@
+{
+  "name": "Net Utility Toolkit",
+  "short_name": "Net Toolkit",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#2563EB",
+  "description": "Network, DNS, password, encoding, and hashing utilities.",
+  "orientation": "any",
+  "prefer_related_applications": false
+}

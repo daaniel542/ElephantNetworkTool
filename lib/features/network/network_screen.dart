@@ -258,7 +258,7 @@ class _OutputCard extends StatelessWidget {
           const SizedBox(height: 6),
           const _BodyText('Live results stream into a copy-friendly terminal.'),
           const SizedBox(height: 28),
-          _Terminal(lines: lines),
+          TerminalOutput(lines: lines, minHeight: 342),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,

@@ -11,6 +11,17 @@ class DnsRecord {
   final String type;
   final String value;
   final int ttl;
+
+  String get formatted => '$type  $value  TTL $ttl';
+}
+
+class DnsServiceException implements Exception {
+  const DnsServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class DnsServiceException implements Exception {
@@ -25,14 +36,14 @@ class DnsServiceException implements Exception {
 /// Performs DNS lookups via Cloudflare's DNS-over-HTTPS JSON API.
 ///
 /// Endpoint: https://cloudflare-dns.com/dns-query
-/// Reference: https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/json/
 class DnsService {
+  DnsService({http.Client? client}) : _client = client ?? http.Client();
+
   static const _baseUrl = 'https://cloudflare-dns.com/dns-query';
 
-  /// Resolve [domain] for the given [type] and return a list of [DnsRecord]s.
-  ///
-  /// Throws a descriptive [Exception] on network failure, rate-limiting, or
-  /// empty/malformed responses — matching the error matrix in PRD section 17.
+  final http.Client _client;
+
+  /// Resolve [domain] for the given [type] and return DNS answer records.
   Future<List<DnsRecord>> lookup({
     required String domain,
     required DnsRecordType type,
@@ -49,9 +60,9 @@ class DnsService {
 
     late http.Response response;
     try {
-      response = await http.get(
+      response = await _client.get(
         uri,
-        headers: {'Accept': 'application/dns-json'},
+        headers: const {'Accept': 'application/dns-json'},
       );
     } catch (_) {
       throw const DnsServiceException(
@@ -73,30 +84,55 @@ class DnsService {
 
     final Map<String, dynamic> body;
     try {
-      body = json.decode(response.body) as Map<String, dynamic>;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Response was not a JSON object.');
+      }
+      body = decoded;
     } catch (_) {
       throw const DnsServiceException(
         'DNS lookup failed. Please check the domain.',
       );
     }
 
-    final answers = body['Answer'] as List<dynamic>?;
-    if (answers == null || answers.isEmpty) {
-      return [];
+    final answers = body['Answer'];
+    if (answers is! List || answers.isEmpty) {
+      return const [];
     }
 
-    return answers.map((a) {
-      final map = a as Map<String, dynamic>;
-      return DnsRecord(
-        type: _typeCodeToName(map['type'] as int? ?? 0),
-        value: map['data'] as String? ?? '',
-        ttl: map['TTL'] as int? ?? 0,
-      );
-    }).toList();
+    return answers
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (answer) => DnsRecord(
+            type: _typeCodeToName(answer['type']),
+            value: (answer['data'] as String?) ?? '',
+            ttl: (answer['TTL'] as num?)?.toInt() ?? 0,
+          ),
+        )
+        .where((record) => record.value.isNotEmpty)
+        .toList(growable: false);
   }
 
-  /// Map a numeric DNS type code to its string name.
-  String _typeCodeToName(int code) {
+  void close() => _client.close();
+
+  String _cleanDomain(String domain) {
+    var value = domain.trim();
+
+    value = value.replaceFirst(RegExp(r'^[a-zA-Z][a-zA-Z\d+\-.]*://'), '');
+    value = value.split(RegExp(r'[/?#]')).first.trim();
+    value = value.replaceFirst(RegExp(r':\d+$'), '');
+    value = value.replaceFirst(RegExp(r'\.$'), '');
+
+    if (value.isEmpty) {
+      throw const DnsServiceException(
+        'DNS lookup failed. Please check the domain.',
+      );
+    }
+
+    return value;
+  }
+
+  String _typeCodeToName(Object? code) {
     const mapping = {
       1: 'A',
       28: 'AAAA',
@@ -105,6 +141,7 @@ class DnsService {
       16: 'TXT',
       2: 'NS',
     };
-    return mapping[code] ?? code.toString();
+    final numericCode = code is num ? code.toInt() : 0;
+    return mapping[numericCode] ?? numericCode.toString();
   }
 }

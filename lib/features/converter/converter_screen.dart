@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../../shared/utils/clipboard_helper.dart';
 import 'converter_controller.dart';
@@ -25,27 +26,31 @@ class ConverterScreen extends StatefulWidget {
 }
 
 class _ConverterScreenState extends State<ConverterScreen> {
-  late final ConverterController _controller;
-  late final TextEditingController _inputController;
+  final TextEditingController _inputController = TextEditingController();
+  ConverterController? _controller;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = ConverterController(service: ConverterService());
-    _inputController = TextEditingController(text: _controller.inputText);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = context.read<ConverterController>();
+    if (_controller == controller) return;
+
+    _controller = controller;
+    _inputController.text = controller.inputText;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     _inputController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<ConverterController>();
+
     return AnimatedBuilder(
-      animation: _controller,
+      animation: controller,
       builder: (context, _) {
         return _ToolPage(
           title: 'Encoding/Decoding',
@@ -54,10 +59,10 @@ class _ConverterScreenState extends State<ConverterScreen> {
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
               final input = _InputCard(
-                controller: _controller,
+                controller: controller,
                 inputController: _inputController,
               );
-              final output = _OutputCard(controller: _controller);
+              final output = _OutputCard(controller: controller);
 
               if (!isWide) {
                 return Column(

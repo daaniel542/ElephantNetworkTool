@@ -7,8 +7,7 @@ import 'ping_event.dart';
 import 'ping_service.dart';
 import 'traceroute_service.dart';
 
-/// Supported DNS record types per PRD section 10.1.
-enum DnsRecordType { a, aaaa, cname, mx, txt, ns }
+enum NetworkToolMode { ping, dns, trace }
 
 enum NetworkToolMode { ping, dns, trace }
 
@@ -32,9 +31,9 @@ class NetworkController extends ChangeNotifier {
 
   NetworkToolMode activeMode = NetworkToolMode.ping;
 
-  // -------------------------------------------------------------------------
-  // Ping state
-  // -------------------------------------------------------------------------
+  bool _isDisposed = false;
+
+  NetworkToolMode activeMode = NetworkToolMode.ping;
 
   /// Host or IP address entered by the user.
   String pingHost = '';
@@ -51,14 +50,10 @@ class NetworkController extends ChangeNotifier {
   /// Optional error message to display in the ping panel.
   String? pingError;
 
-  // -------------------------------------------------------------------------
-  // DNS state
-  // -------------------------------------------------------------------------
-
   /// Domain entered by the user.
   String dnsDomain = '';
 
-  /// Currently selected record type.
+  /// Currently selected DNS record type.
   DnsRecordType dnsRecordType = DnsRecordType.a;
 
   /// Whether a DNS lookup is currently in flight.
@@ -220,7 +215,7 @@ class NetworkController extends ChangeNotifier {
     } finally {
       _pingService.stopPing();
       isPinging = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -233,10 +228,6 @@ class NetworkController extends ChangeNotifier {
     pingOutput.add('--- Ping stopped by user ---');
     notifyListeners();
   }
-
-  // -------------------------------------------------------------------------
-  // DNS actions
-  // -------------------------------------------------------------------------
 
   /// Execute a DNS lookup for [dnsDomain] using [dnsRecordType].
   Future<void> lookupDns() async {
@@ -256,7 +247,7 @@ class NetworkController extends ChangeNotifier {
     }
 
     isDnsLoading = true;
-    notifyListeners();
+    _notify();
 
     try {
       dnsResults = await _dnsService.lookup(
@@ -270,6 +261,220 @@ class NetworkController extends ChangeNotifier {
     } finally {
       hasDnsLookupResult = true;
       isDnsLoading = false;
+      _notify();
+    }
+  }
+
+  Future<void> startTraceroute(String host) async {
+    final target = host.trim();
+    if (target.isEmpty) {
+      traceError = 'Trace failed. Please check the host.';
+      _notify();
+      return;
+    }
+
+    await stopTraceroute(addStopLine: false);
+    _pingService.stopPing();
+
+    traceHost = target;
+    traceOutput
+      ..clear()
+      ..add('Tracing route to $target...')
+      ..add('Maximum hops: 30')
+      ..add('')
+      ..add('Waiting for hop responses...');
+    traceError = null;
+    isTracing = true;
+    _notify();
+
+    _traceSubscription = _tracerouteService
+        .trace(host: target, maxHops: 30)
+        .listen(
+          (hop) {
+            if (traceOutput.isNotEmpty &&
+                traceOutput.last == 'Waiting for hop responses...') {
+              traceOutput.removeLast();
+            }
+            traceOutput.add(_formatTraceHop(hop));
+            _notify();
+          },
+          onError: (_) {
+            traceError = 'Trace failed. Please check the host.';
+            isTracing = false;
+            _notify();
+          },
+          onDone: () {
+            isTracing = false;
+            _traceSubscription = null;
+            _notify();
+          },
+          cancelOnError: true,
+        );
+  }
+
+  Future<void> stopTraceroute({bool addStopLine = true}) async {
+    final wasTracing = isTracing;
+    isTracing = false;
+
+    if (wasTracing && addStopLine) {
+      if (traceOutput.isNotEmpty &&
+          traceOutput.last == 'Waiting for hop responses...') {
+        traceOutput.removeLast();
+      }
+      traceOutput.add('--- Trace stopped by user ---');
+    }
+    if (wasTracing) {
+      _notify();
+    }
+
+    await _tracerouteService.stopTrace();
+    await _traceSubscription?.cancel().timeout(
+      const Duration(seconds: 1),
+      onTimeout: () {},
+    );
+    _traceSubscription = null;
+
+    if (!wasTracing && addStopLine == false) {
+      _notify();
+    }
+  }
+
+  List<String> _formatPingEvent(PingEvent event, String host) {
+    return switch (event) {
+      PingResponse() => [
+        'Reply from ${event.ip ?? host}: '
+            '${event.seq == null ? '' : 'seq=${event.seq} '}'
+            'ttl=${event.ttl ?? '?'} '
+            'time=${_formatDurationMs(event.time)} ms',
+      ],
+      PingError() => [
+        'Error${event.seq == null ? '' : ' seq=${event.seq}'}: '
+            '${event.message ?? _describeError(event.error)}'
+            '${event.ip == null ? '' : ' (${event.ip})'}',
+      ],
+      PingSummary() => _formatSummary(event),
+    };
+  }
+
+  List<String> _formatSummary(PingSummary summary) {
+    final lost = summary.transmitted - summary.received;
+    final lines = [
+      '',
+      'Summary:',
+      'Sent: ${summary.transmitted}',
+      'Received: ${summary.received}',
+      'Lost: $lost',
+      'Packet loss: ${summary.packetLoss.toStringAsFixed(0)}%',
+    ];
+
+    final stats = summary.stats;
+    if (stats?.avg != null) {
+      lines.add('Average: ${_formatDurationMs(stats!.avg)} ms');
+    }
+    if (stats?.min != null && stats?.max != null) {
+      lines.add(
+        'Min/Max: ${_formatDurationMs(stats!.min)} / '
+        '${_formatDurationMs(stats.max)} ms',
+      );
+    }
+    return lines;
+  }
+
+  List<String> _formatDnsRecord(int index, DnsRecord record) {
+    final lines = ['[$index] ${record.type}', '    TTL  : ${record.ttl}'];
+
+    final txtParts = record.type == 'TXT'
+        ? _splitTxtRecord(record.value)
+        : null;
+    if (txtParts == null) {
+      lines.addAll(_formatWrappedField('Value', record.value));
+      return lines;
+    }
+
+    lines.add('    Key  : ${txtParts.key}');
+    lines.addAll(_formatWrappedField('Value', txtParts.value));
+    return lines;
+  }
+
+  String _formatTraceHop(TracerouteHop hop) {
+    final hopNumber = hop.hopNumber.toString().padLeft(2);
+    final address = hop.address ?? '*';
+    final latency = hop.latency == null
+        ? ''
+        : ' ${_formatDurationMs(hop.latency)} ms';
+    final destination = hop.isDestination ? ' (destination)' : '';
+    return '$hopNumber  $address$latency  ${hop.message}$destination';
+  }
+
+  ({String key, String value})? _splitTxtRecord(String rawValue) {
+    final value = _stripOuterQuotes(rawValue);
+    final separatorIndex = value.indexOf('=');
+    if (separatorIndex <= 0 || separatorIndex == value.length - 1) {
+      return null;
+    }
+
+    return (
+      key: value.substring(0, separatorIndex),
+      value: value.substring(separatorIndex + 1),
+    );
+  }
+
+  String _stripOuterQuotes(String value) {
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      return value.substring(1, value.length - 1);
+    }
+    return value;
+  }
+
+  List<String> _formatWrappedField(String label, String value) {
+    const valueWidth = 72;
+    final valueLines = _wrapText(_stripOuterQuotes(value), valueWidth);
+    return [
+      '    ${label.padRight(5)}: ${valueLines.first}',
+      for (final line in valueLines.skip(1)) '           $line',
+    ];
+  }
+
+  List<String> _wrapText(String value, int width) {
+    if (value.length <= width) return [value];
+
+    final lines = <String>[];
+    var remaining = value;
+    while (remaining.length > width) {
+      var splitAt = remaining.lastIndexOf(' ', width);
+      if (splitAt <= 0) splitAt = width;
+
+      lines.add(remaining.substring(0, splitAt).trimRight());
+      remaining = remaining.substring(splitAt).trimLeft();
+    }
+    if (remaining.isNotEmpty) {
+      lines.add(remaining);
+    }
+    return lines;
+  }
+
+  String _formatDurationMs(Duration? duration) {
+    if (duration == null) return '?';
+    final micros = duration.inMicroseconds;
+    if (micros % Duration.microsecondsPerMillisecond == 0) {
+      return (micros ~/ Duration.microsecondsPerMillisecond).toString();
+    }
+    return (micros / Duration.microsecondsPerMillisecond).toStringAsFixed(1);
+  }
+
+  String _describeError(ErrorType error) {
+    return switch (error) {
+      ErrorType.requestTimedOut => 'Request timed out.',
+      ErrorType.unknownHost => 'Unknown host.',
+      ErrorType.timeToLiveExceeded => 'Time to live exceeded.',
+      ErrorType.noReply => 'No reply.',
+      ErrorType.noRoute => 'No route to host.',
+      ErrorType.unknown => 'Unknown error.',
+    };
+  }
+
+  void _notify() {
+    if (!_isDisposed) {
       notifyListeners();
     }
   }

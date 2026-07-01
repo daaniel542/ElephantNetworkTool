@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// A scrollable, terminal-styled output view for streaming network results.
+const _terminal = Color(0xFF020617);
+const _terminalMuted = Color(0xFF94A3B8);
+const _terminalText = Color(0xFFE2E8F0);
+
+/// Scrollable, terminal-styled output for live network results.
 ///
-/// Automatically scrolls to the bottom as new [lines] are appended,
-/// simulating a live console pane as required by PRD section 10.1.
+/// The visual treatment mirrors the Figma component reference: near-black
+/// panel, muted terminal title, and monospaced copy-friendly lines.
 class TerminalOutput extends StatefulWidget {
   const TerminalOutput({
     super.key,
@@ -14,7 +18,7 @@ class TerminalOutput extends StatefulWidget {
   /// Lines to display. Pass the full accumulated list on each rebuild.
   final List<String> lines;
 
-  /// Minimum height of the terminal pane.
+  /// Fixed visual height for the terminal panel.
   final double minHeight;
 
   @override
@@ -33,13 +37,13 @@ class _TerminalOutputState extends State<TerminalOutput> {
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-    }
+    if (!_scrollController.hasClients) return;
+
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -50,39 +54,61 @@ class _TerminalOutputState extends State<TerminalOutput> {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: widget.minHeight),
+    final isEmpty = widget.lines.isEmpty;
+
+    return SizedBox(
+      height: widget.minHeight,
+      width: double.infinity,
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D0D0D),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF2A2A2A)),
+          color: _terminal,
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: widget.lines.isEmpty
-            ? Text(
-                'Awaiting output…',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: Colors.white.withValues(alpha: 0.3),
-                  fontSize: 13,
-                ),
-              )
-            : ListView.builder(
-                controller: _scrollController,
-                shrinkWrap: true,
-                itemCount: widget.lines.length,
-                itemBuilder: (_, index) => Text(
-                  widget.lines[index],
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Color(0xFF00FF88),
-                    fontSize: 13,
-                    height: 1.6,
-                  ),
-                ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Live Output',
+              style: TextStyle(
+                color: _terminalMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
               ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: isEmpty
+                  ? const SelectableText(
+                      'No results yet. Enter input and run the tool.',
+                      style: TextStyle(
+                        color: _terminalMuted,
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        height: 1.45,
+                        letterSpacing: 0,
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      itemCount: widget.lines.length,
+                      itemBuilder: (context, index) {
+                        return SelectableText(
+                          widget.lines[index],
+                          style: const TextStyle(
+                            color: _terminalText,
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            height: 1.45,
+                            letterSpacing: 0,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
