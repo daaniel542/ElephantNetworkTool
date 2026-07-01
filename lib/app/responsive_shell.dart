@@ -235,10 +235,17 @@ class _SidebarFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        Image.asset(
+          'assets/images/elephantlogo.png',
+          width: 186,
+          fit: BoxFit.contain,
+          semanticLabel: 'Elephant Technology Limited logo',
+        ),
+        const SizedBox(height: 12),
+        const Text(
           'Elephant Technology Ltd',
           style: TextStyle(
             color: Color(0xFF64748B),
@@ -247,8 +254,8 @@ class _SidebarFooter extends StatelessWidget {
             letterSpacing: 0,
           ),
         ),
-        SizedBox(height: 6),
-        Text(
+        const SizedBox(height: 6),
+        const Text(
           'Version 1',
           style: TextStyle(
             color: _sidebarMuted,
