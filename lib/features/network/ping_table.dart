@@ -114,7 +114,7 @@ class PingTable extends StatelessWidget {
                 ),
               ),
             ),
-            // Table
+            // Table grows with rows
             if (rows.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -178,7 +178,7 @@ class PingTable extends StatelessWidget {
                   ),
                 ),
               ),
-            // Summary card
+            // Summary card — always at bottom
             if (summary != null && !isPinging) _buildSummary(summary!),
             const SizedBox(height: 14),
           ],

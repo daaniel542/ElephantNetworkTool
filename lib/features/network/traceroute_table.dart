@@ -109,7 +109,7 @@ class TracerouteTable extends StatelessWidget {
                   ),
                 ),
               ),
-            // Table
+            // Table grows with hops
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: ClipRRect(
@@ -158,7 +158,7 @@ class TracerouteTable extends StatelessWidget {
                   ],
                 ),
               ),
-            // Summary
+            // Summary — always at bottom
             if (summary != null && !isTracing)
               _buildSummary(summary!),
             const SizedBox(height: 14),

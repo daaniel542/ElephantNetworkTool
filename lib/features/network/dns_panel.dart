@@ -158,7 +158,7 @@ class DnsPanel extends StatelessWidget {
                   ),
                 ),
               )
-            // Records table
+            // Records table grows with records
             else ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -167,6 +167,7 @@ class DnsPanel extends StatelessWidget {
                   child: _buildTable(),
                 ),
               ),
+              // Summary — always at bottom
               _buildSummary(),
               const SizedBox(height: 14),
             ],
