@@ -8,7 +8,7 @@ recommended distribution path because Ping and Traceroute require local operatin
 system networking capabilities that browser builds cannot provide.
 
 **Privacy Statement: All calculations are performed locally without taking/storing user data, except DNS calculation
-which is done using Cloudfare DNS API**
+which is done using Cloudfare DNS API.**
 
 ## Development
 
