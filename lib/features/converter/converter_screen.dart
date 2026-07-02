@@ -114,6 +114,7 @@ class _InputCard extends StatelessWidget {
           _TextArea(
             controller: inputController,
             onChanged: controller.setInput,
+            onSubmitted: controller.convert,
           ),
           const SizedBox(height: 26),
           const _FieldLabel('Operation'),
@@ -277,10 +278,15 @@ class _Card extends StatelessWidget {
 }
 
 class _TextArea extends StatelessWidget {
-  const _TextArea({required this.controller, required this.onChanged});
+  const _TextArea({
+    required this.controller,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -293,29 +299,48 @@ class _TextArea extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _controlBorder),
       ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        expands: true,
-        minLines: null,
-        maxLines: null,
-        textAlignVertical: TextAlignVertical.top,
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(ConverterController.maxInputLength),
-        ],
-        cursorColor: _primary,
-        style: const TextStyle(
-          color: _text,
-          fontSize: 14,
-          height: 1.4,
-          letterSpacing: 0,
-        ),
-        decoration: InputDecoration.collapsed(
-          hintText: 'ex. hello internet',
-          hintStyle: TextStyle(
-            color: _muted.withValues(alpha: 0.62),
+      child: Focus(
+        onKeyEvent: (node, event) {
+          final key = event.logicalKey;
+          final isEnter =
+              key == LogicalKeyboardKey.enter ||
+              key == LogicalKeyboardKey.numpadEnter;
+
+          if (event is KeyDownEvent &&
+              isEnter &&
+              !HardwareKeyboard.instance.isShiftPressed) {
+            onSubmitted();
+            return KeyEventResult.handled;
+          }
+
+          return KeyEventResult.ignored;
+        },
+        child: TextField(
+          controller: controller,
+          onChanged: onChanged,
+          expands: true,
+          minLines: null,
+          maxLines: null,
+          textAlignVertical: TextAlignVertical.top,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(
+              ConverterController.maxInputLength,
+            ),
+          ],
+          cursorColor: _primary,
+          style: const TextStyle(
+            color: _text,
             fontSize: 14,
+            height: 1.4,
             letterSpacing: 0,
+          ),
+          decoration: InputDecoration.collapsed(
+            hintText: 'ex. hello internet',
+            hintStyle: TextStyle(
+              color: _muted.withValues(alpha: 0.62),
+              fontSize: 14,
+              letterSpacing: 0,
+            ),
           ),
         ),
       ),
