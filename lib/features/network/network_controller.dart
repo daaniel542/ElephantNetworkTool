@@ -439,6 +439,10 @@ class NetworkController extends ChangeNotifier {
         : null;
     if (txtParts == null) {
       lines.addAll(_formatWrappedField('Value', record.value));
+      final ipAddress = record.ipAddress;
+      if (ipAddress != null) {
+        lines.addAll(_formatWrappedField('IP Address', ipAddress));
+      }
       return lines;
     }
 

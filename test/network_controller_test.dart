@@ -76,6 +76,40 @@ void main() {
         controller.activeOutputLines,
         contains('    Value: 10 mail.example.com'),
       );
+      expect(
+        controller.activeOutputLines,
+        isNot(contains('    IP Address: 10 mail.example.com')),
+      );
+
+      controller.dispose();
+    });
+
+    test('formats DNS address records with related IP address', () async {
+      final controller =
+          NetworkController(
+              pingService: _FakePingService(const []),
+              tracerouteService: _FakeTracerouteService(),
+              dnsService: _FakeDnsService(
+                records: const [
+                  DnsRecord(type: 'A', value: '142.251.47.14', ttl: 194),
+                ],
+              ),
+            )
+            ..setActiveMode(NetworkToolMode.dns)
+            ..setDnsDomain('google.com')
+            ..setDnsRecordType(DnsRecordType.a);
+
+      await controller.lookupDns();
+
+      expect(controller.activeOutputLines, contains('[1] A'));
+      expect(
+        controller.activeOutputLines,
+        contains('    Value: 142.251.47.14'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('    IP Address: 142.251.47.14'),
+      );
 
       controller.dispose();
     });

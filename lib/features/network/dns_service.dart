@@ -13,6 +13,8 @@ class DnsRecord {
   final String value;
   final int ttl;
 
+  String? get ipAddress => type == 'A' || type == 'AAAA' ? value : null;
+
   String get formatted => '$type  $value  TTL $ttl';
 }
 

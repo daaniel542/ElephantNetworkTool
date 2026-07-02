@@ -34,6 +34,7 @@ void main() {
       expect(records, hasLength(1));
       expect(records.single.type, 'A');
       expect(records.single.value, '93.184.216.34');
+      expect(records.single.ipAddress, '93.184.216.34');
       expect(records.single.ttl, 300);
       expect(records.single.formatted, 'A  93.184.216.34  TTL 300');
     });
