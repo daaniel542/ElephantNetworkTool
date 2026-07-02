@@ -118,6 +118,21 @@ class _ControlsCard extends StatelessWidget {
         : isDns
         ? dnsDomainController
         : traceHostController;
+    void submitActiveTool() {
+      if (isPing) {
+        if (controller.isPinging) return;
+        controller.setPingHost(pingHostController.text);
+        controller.startPing();
+      } else if (isDns) {
+        if (controller.isDnsLoading) return;
+        controller.setDnsDomain(dnsDomainController.text);
+        controller.lookupDns();
+      } else {
+        if (controller.isTracing) return;
+        controller.setTraceHost(traceHostController.text);
+        controller.startTraceroute(traceHostController.text);
+      }
+    }
 
     return _Card(
       minHeight: 660,
@@ -139,6 +154,7 @@ class _ControlsCard extends StatelessWidget {
             controller: textController,
             hintText: isTrace ? 'ex. 8.8.8.8' : 'ex. google.com',
             enabled: !controller.isBusy,
+            onSubmitted: submitActiveTool,
             onChanged: (value) {
               if (isPing) {
                 controller.setPingHost(value);
@@ -163,6 +179,7 @@ class _ControlsCard extends StatelessWidget {
                     min: PingDefaults.minCount,
                     max: PingDefaults.maxCount,
                     onChanged: controller.setPingCount,
+                    onSubmitted: submitActiveTool,
                   ),
                 ),
                 _PingOptionField(
@@ -174,6 +191,7 @@ class _ControlsCard extends StatelessWidget {
                     max: PingDefaults.maxTimeoutMs,
                     step: 500,
                     onChanged: controller.setPingTimeoutMs,
+                    onSubmitted: submitActiveTool,
                   ),
                 ),
                 _PingOptionField(
@@ -184,6 +202,7 @@ class _ControlsCard extends StatelessWidget {
                     min: PingDefaults.minTtl,
                     max: PingDefaults.maxTtl,
                     onChanged: controller.setPingTtl,
+                    onSubmitted: submitActiveTool,
                   ),
                 ),
               ],
@@ -197,12 +216,7 @@ class _ControlsCard extends StatelessWidget {
                   label: controller.isPinging ? 'Pinging...' : 'Start Ping',
                   width: 160,
                   isLoading: controller.isPinging,
-                  onPressed: controller.isPinging
-                      ? null
-                      : () {
-                          controller.setPingHost(pingHostController.text);
-                          controller.startPing();
-                        },
+                  onPressed: controller.isPinging ? null : submitActiveTool,
                 ),
                 _SecondaryButton(
                   label: 'Stop',
@@ -224,12 +238,7 @@ class _ControlsCard extends StatelessWidget {
               label: controller.isDnsLoading ? 'Looking up...' : 'Lookup DNS',
               width: 160,
               isLoading: controller.isDnsLoading,
-              onPressed: controller.isDnsLoading
-                  ? null
-                  : () {
-                      controller.setDnsDomain(dnsDomainController.text);
-                      controller.lookupDns();
-                    },
+              onPressed: controller.isDnsLoading ? null : submitActiveTool,
             ),
           ] else if (isTrace) ...[
             const _BodyText(
@@ -244,12 +253,7 @@ class _ControlsCard extends StatelessWidget {
                   label: controller.isTracing ? 'Tracing...' : 'Start Trace',
                   width: 160,
                   isLoading: controller.isTracing,
-                  onPressed: controller.isTracing
-                      ? null
-                      : () {
-                          controller.setTraceHost(traceHostController.text);
-                          controller.startTraceroute(traceHostController.text);
-                        },
+                  onPressed: controller.isTracing ? null : submitActiveTool,
                 ),
                 _SecondaryButton(
                   label: 'Stop',
@@ -593,12 +597,14 @@ class _TextInput extends StatelessWidget {
     required this.hintText,
     required this.enabled,
     required this.onChanged,
+    required this.onSubmitted,
   });
 
   final TextEditingController controller;
   final String hintText;
   final bool enabled;
   final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -606,6 +612,8 @@ class _TextInput extends StatelessWidget {
       controller: controller,
       enabled: enabled,
       onChanged: onChanged,
+      onSubmitted: (_) => onSubmitted(),
+      textInputAction: TextInputAction.search,
       cursorColor: _primary,
       style: const TextStyle(color: _text, fontSize: 14, letterSpacing: 0),
       decoration: _inputDecoration(hintText: hintText),
@@ -638,6 +646,7 @@ class _PingNumberInput extends StatefulWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    required this.onSubmitted,
     this.step = 1,
   });
 
@@ -647,6 +656,7 @@ class _PingNumberInput extends StatefulWidget {
   final int max;
   final int step;
   final ValueChanged<int> onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   State<_PingNumberInput> createState() => _PingNumberInputState();
@@ -708,6 +718,11 @@ class _PingNumberInputState extends State<_PingNumberInput> {
     _setText(normalized.toString());
   }
 
+  void _submit() {
+    _commit();
+    widget.onSubmitted();
+  }
+
   void _setText(String value) {
     _controller.value = TextEditingValue(
       text: value,
@@ -735,6 +750,7 @@ class _PingNumberInputState extends State<_PingNumberInput> {
               focusNode: _focusNode,
               enabled: widget.enabled,
               keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.search,
               textAlign: TextAlign.center,
               cursorColor: _primary,
               inputFormatters: [
@@ -743,6 +759,7 @@ class _PingNumberInputState extends State<_PingNumberInput> {
               ],
               onChanged: _handleChanged,
               onEditingComplete: _commit,
+              onSubmitted: (_) => _submit(),
               style: const TextStyle(
                 color: _text,
                 fontSize: 14,

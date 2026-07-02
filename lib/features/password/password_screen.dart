@@ -101,6 +101,7 @@ class _PasswordSettingsCard extends StatelessWidget {
               _LengthInput(
                 value: controller.length,
                 onChanged: controller.setLength,
+                onSubmitted: controller.generate,
               ),
             ],
           ),
@@ -134,6 +135,7 @@ class _PasswordSettingsCard extends StatelessWidget {
             initialValue: controller.excludedChars,
             hintText: 'ex. lIO0',
             onChanged: controller.setExcludedChars,
+            onSubmitted: controller.generate,
           ),
           const SizedBox(height: 14),
           const _Caption(
@@ -367,10 +369,15 @@ class _Caption extends StatelessWidget {
 }
 
 class _LengthInput extends StatefulWidget {
-  const _LengthInput({required this.value, required this.onChanged});
+  const _LengthInput({
+    required this.value,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
   final int value;
   final ValueChanged<int> onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   State<_LengthInput> createState() => _LengthInputState();
@@ -428,6 +435,11 @@ class _LengthInputState extends State<_LengthInput> {
     _setText(normalized.toString());
   }
 
+  void _submit() {
+    _commit();
+    widget.onSubmitted();
+  }
+
   void _setText(String value) {
     _controller.value = TextEditingValue(
       text: value,
@@ -444,6 +456,7 @@ class _LengthInputState extends State<_LengthInput> {
         controller: _controller,
         focusNode: _focusNode,
         keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.done,
         textAlign: TextAlign.center,
         cursorColor: _primary,
         inputFormatters: [
@@ -452,6 +465,7 @@ class _LengthInputState extends State<_LengthInput> {
         ],
         onChanged: _handleChanged,
         onEditingComplete: _commit,
+        onSubmitted: (_) => _submit(),
         style: const TextStyle(
           color: _text,
           fontSize: 14,
@@ -522,17 +536,21 @@ class _TextInput extends StatelessWidget {
     required this.initialValue,
     required this.hintText,
     required this.onChanged,
+    required this.onSubmitted,
   });
 
   final String initialValue;
   final String hintText;
   final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       initialValue: initialValue,
       onChanged: onChanged,
+      onFieldSubmitted: (_) => onSubmitted(),
+      textInputAction: TextInputAction.done,
       cursorColor: _primary,
       style: const TextStyle(color: _text, fontSize: 14, letterSpacing: 0),
       decoration: _inputDecoration(hintText: hintText),
