@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir -p release/macos
           ditto -c -k --sequesterRsrc --keepParent \
-            "build/macos/Build/Products/Release/Elephant Network Tool.app" \
+            "build/macos/Build/Products/Release/ENT.app" \
             "release/macos/${{ matrix.zip_name }}"
 
       - name: Build Windows release

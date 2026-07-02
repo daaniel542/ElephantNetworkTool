@@ -152,7 +152,7 @@ class _SidebarBrand extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Network Utility Kit',
+          'ENT',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,

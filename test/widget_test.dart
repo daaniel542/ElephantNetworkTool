@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(const NetUtilityApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Network Utility Kit'), findsOneWidget);
+    expect(find.text('ENT'), findsOneWidget);
     expect(find.text('Version 1'), findsOneWidget);
     expect(find.text('Password Generator'), findsOneWidget);
   });
