@@ -1,4 +1,4 @@
-name: ElephantNetworkingKit
+name: net_utility_toolkit
 description: "Network Utility Toolkit — Ping, DNS lookup, password generation, and encoding/hashing tools."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.

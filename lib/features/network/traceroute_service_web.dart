@@ -1,18 +1,4 @@
-class TracerouteHop {
-  const TracerouteHop({
-    required this.hopNumber,
-    this.address,
-    this.latency,
-    required this.message,
-    this.isDestination = false,
-  });
-
-  final int hopNumber;
-  final String? address;
-  final Duration? latency;
-  final String message;
-  final bool isDestination;
-}
+import 'traceroute_models.dart';
 
 class TracerouteService {
   Stream<TracerouteHop> trace({
@@ -20,8 +6,9 @@ class TracerouteService {
     int maxHops = 30,
     int timeout = 2,
   }) async* {
-    yield const TracerouteHop(
+    yield TracerouteHop(
       hopNumber: 1,
+      status: TracerouteHopStatus.timeout,
       message: 'Traceroute is not supported on web.',
     );
   }

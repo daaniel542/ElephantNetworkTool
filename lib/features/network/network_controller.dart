@@ -9,6 +9,50 @@ import 'traceroute_service.dart';
 
 enum NetworkToolMode { ping, dns, trace }
 
+const _traceHopWidth = 3;
+const _traceTtlWidth = 3;
+const _traceStatusWidth = 7;
+const _traceAddressWidth = 16;
+const _traceMetricWidth = 8;
+
+final _traceTableHeader =
+    '${_traceRow('Hop', 'TTL', 'Status', 'IP', 'P1', 'P2', 'P3', 'Avg')}\n'
+    '${_traceRow('-' * _traceHopWidth, '-' * _traceTtlWidth, '-' * _traceStatusWidth, '-' * _traceAddressWidth, '-' * _traceMetricWidth, '-' * _traceMetricWidth, '-' * _traceMetricWidth, '-' * _traceMetricWidth)}';
+
+String _traceRow(
+  String hop,
+  String ttl,
+  String status,
+  String address,
+  String probe1,
+  String probe2,
+  String probe3,
+  String average,
+) {
+  return '${_traceTextCell(hop, _traceHopWidth)} | '
+      '${_traceRightCell(ttl, _traceTtlWidth)} | '
+      '${_traceTextCell(status, _traceStatusWidth)} | '
+      '${_traceTextCell(address, _traceAddressWidth)} | '
+      '${_traceMetricCell(probe1)} | '
+      '${_traceMetricCell(probe2)} | '
+      '${_traceMetricCell(probe3)} | '
+      '${_traceMetricCell(average)}';
+}
+
+String _traceTextCell(String value, int width) {
+  if (value.length <= width) return value.padRight(width);
+  return value.substring(0, width);
+}
+
+String _traceRightCell(String value, int width) {
+  if (value.length <= width) return value.padLeft(width);
+  return value.substring(0, width);
+}
+
+String _traceMetricCell(String value) {
+  return _traceRightCell(value, _traceMetricWidth);
+}
+
 /// Controller for the Network screen.
 ///
 /// Owns UI state, validates inputs, debounces async actions, and translates
@@ -72,6 +116,12 @@ class NetworkController extends ChangeNotifier {
 
   /// Accumulated terminal output lines from the active traceroute session.
   final List<String> traceOutput = [];
+
+  /// Structured hop rows from the active or most recent traceroute session.
+  final List<TracerouteHop> traceHops = [];
+
+  /// Derived totals from the most recent completed traceroute session.
+  TracerouteSummary? traceSummary;
 
   /// Optional error message to display in the trace panel.
   String? traceError;
@@ -267,11 +317,13 @@ class NetworkController extends ChangeNotifier {
     await stopTraceroute(addStopLine: false);
 
     traceHost = target;
+    traceHops.clear();
+    traceSummary = null;
     traceOutput
       ..clear()
-      ..add('Tracing route to $target...')
-      ..add('Maximum hops: 30')
+      ..add('Trace to $target | max hops 30')
       ..add('')
+      ..add(_traceTableHeader)
       ..add('Waiting for hop responses...');
     traceError = null;
     isTracing = true;
@@ -285,17 +337,27 @@ class NetworkController extends ChangeNotifier {
                 traceOutput.last == 'Waiting for hop responses...') {
               traceOutput.removeLast();
             }
+            traceHops.add(hop);
             traceOutput.add(_formatTraceHop(hop));
             _notify();
           },
           onError: (_) {
             traceError = 'Trace failed. Please check the host.';
             isTracing = false;
+            _traceSubscription = null;
             _notify();
           },
           onDone: () {
             isTracing = false;
             _traceSubscription = null;
+            if (traceHops.isNotEmpty) {
+              if (traceOutput.isNotEmpty &&
+                  traceOutput.last == 'Waiting for hop responses...') {
+                traceOutput.removeLast();
+              }
+              traceSummary = TracerouteSummary.fromHops(traceHops);
+              traceOutput.addAll(_formatTraceSummary(traceSummary!));
+            }
             _notify();
           },
           cancelOnError: true,
@@ -386,13 +448,52 @@ class NetworkController extends ChangeNotifier {
   }
 
   String _formatTraceHop(TracerouteHop hop) {
-    final hopNumber = hop.hopNumber.toString().padLeft(2);
-    final address = hop.address ?? '*';
-    final latency = hop.latency == null
-        ? ''
-        : ' ${_formatDurationMs(hop.latency)} ms';
-    final destination = hop.isDestination ? ' (destination)' : '';
-    return '$hopNumber  $address$latency  ${hop.message}$destination';
+    return _traceRow(
+      hop.hopNumber.toString().padLeft(2, '0'),
+      hop.hopNumber.toString(),
+      _formatTraceStatus(hop),
+      _compactTraceAddress(hop),
+      _formatTraceProbe(hop.probe1),
+      _formatTraceProbe(hop.probe2),
+      _formatTraceProbe(hop.probe3),
+      _formatTraceAverage(hop.averageRtt),
+    );
+  }
+
+  List<String> _formatTraceSummary(TracerouteSummary summary) {
+    return [
+      '',
+      '────────────────────────────────────────',
+      'Trace Summary',
+      '  Destination : ${summary.destinationReached ?? 'Not reached'}',
+      '  Hops        : ${summary.totalHops}',
+      '  End-to-end  : ${_formatTraceAverage(summary.totalEndToEndLatency)}',
+    ];
+  }
+
+  String _formatTraceStatus(TracerouteHop hop) {
+    if (hop.isDestination) return 'reached';
+    return switch (hop.status) {
+      TracerouteHopStatus.pending => 'pending',
+      TracerouteHopStatus.success => 'success',
+      TracerouteHopStatus.timeout => 'timeout',
+    };
+  }
+
+  String _compactTraceAddress(TracerouteHop hop) {
+    if (hop.status == TracerouteHopStatus.timeout) return 'Timed out';
+    if (hop.displayAddress.isEmpty) return 'Unknown hop';
+    return hop.displayAddress;
+  }
+
+  String _formatTraceProbe(Duration? duration) {
+    if (duration == null) return '*';
+    return '${_formatDurationMs(duration)}ms';
+  }
+
+  String _formatTraceAverage(Duration? duration) {
+    if (duration == null) return '-';
+    return '${_formatDurationMs(duration)}ms';
   }
 
   String _formatDurationMs(Duration? duration) {
