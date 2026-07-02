@@ -1,6 +1,6 @@
 # Elephant Network Tool (ENT)
 
-Internal network utility for Elephant Technologies LTD.
+Internal network utility tool for Elephant Technologies LTD.
 
 The app is a Flutter desktop tool with Ping, Traceroute, DNS lookup, password
 generation, and encoding/hashing utilities. Native desktop builds are the
