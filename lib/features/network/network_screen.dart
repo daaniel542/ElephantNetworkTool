@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/utils/clipboard_helper.dart';
-import '../../shared/widgets/terminal_output.dart';
+import 'dns_panel.dart';
 import 'dns_service.dart';
 import 'network_controller.dart';
+import 'ping_event.dart';
+import 'ping_table.dart';
 import 'traceroute_table.dart';
 
 const _background = Color(0xFFF8FAFC);
@@ -149,12 +151,42 @@ class _ControlsCard extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           if (isPing) ...[
-            const _FieldLabel('Ping Count'),
-            const SizedBox(height: 8),
-            _PingCountInput(
-              value: controller.pingCount,
-              enabled: !controller.isPinging,
-              onChanged: controller.setPingCount,
+            Wrap(
+              spacing: 18,
+              runSpacing: 18,
+              children: [
+                _PingOptionField(
+                  label: 'Ping Count',
+                  child: _PingNumberInput(
+                    value: controller.pingCount,
+                    enabled: !controller.isPinging,
+                    min: PingDefaults.minCount,
+                    max: PingDefaults.maxCount,
+                    onChanged: controller.setPingCount,
+                  ),
+                ),
+                _PingOptionField(
+                  label: 'Timeout (ms)',
+                  child: _PingNumberInput(
+                    value: controller.pingTimeoutMs,
+                    enabled: !controller.isPinging,
+                    min: PingDefaults.minTimeoutMs,
+                    max: PingDefaults.maxTimeoutMs,
+                    step: 500,
+                    onChanged: controller.setPingTimeoutMs,
+                  ),
+                ),
+                _PingOptionField(
+                  label: 'TTL',
+                  child: _PingNumberInput(
+                    value: controller.pingTtl,
+                    enabled: !controller.isPinging,
+                    min: PingDefaults.minTtl,
+                    max: PingDefaults.maxTtl,
+                    onChanged: controller.setPingTtl,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 36),
             Wrap(
@@ -246,9 +278,43 @@ class _OutputCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTrace = controller.activeMode == NetworkToolMode.trace;
-    final lines = controller.activeOutputLines;
+    final mode = controller.activeMode;
     final outputText = controller.activeOutputText;
+
+    Widget outputWidget;
+    switch (mode) {
+      case NetworkToolMode.ping:
+        outputWidget = PingTable(
+          host: controller.pingHost,
+          pingCount: controller.pingCount,
+          timeoutMs: controller.pingTimeoutMs,
+          ttl: controller.pingTtl,
+          rows: controller.pingRows,
+          summary: controller.pingSummaryData,
+          isPinging: controller.isPinging,
+          error: controller.pingError,
+          minHeight: 342,
+        );
+      case NetworkToolMode.dns:
+        outputWidget = DnsPanel(
+          domain: controller.dnsDomain,
+          recordType: controller.dnsRecordType,
+          records: controller.dnsResults,
+          isLoading: controller.isDnsLoading,
+          error: controller.dnsError,
+          hasResult: controller.hasDnsLookupResult,
+          minHeight: 342,
+        );
+      case NetworkToolMode.trace:
+        outputWidget = TracerouteTable(
+          hops: controller.traceHops,
+          targetHost: controller.traceHost,
+          summary: controller.traceSummary,
+          isTracing: controller.isTracing,
+          error: controller.traceError,
+          minHeight: 342,
+        );
+    }
 
     return _Card(
       minHeight: 660,
@@ -259,17 +325,7 @@ class _OutputCard extends StatelessWidget {
           const SizedBox(height: 6),
           const _BodyText('Live results stream into a copy-friendly terminal.'),
           const SizedBox(height: 28),
-          if (isTrace)
-            TracerouteTable(
-              hops: controller.traceHops,
-              targetHost: controller.traceHost,
-              summary: controller.traceSummary,
-              isTracing: controller.isTracing,
-              error: controller.traceError,
-              minHeight: 342,
-            )
-          else
-            TerminalOutput(lines: lines, minHeight: 342),
+          outputWidget,
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
@@ -557,22 +613,46 @@ class _TextInput extends StatelessWidget {
   }
 }
 
-class _PingCountInput extends StatefulWidget {
-  const _PingCountInput({
+class _PingOptionField extends StatelessWidget {
+  const _PingOptionField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 180,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [_FieldLabel(label), const SizedBox(height: 8), child],
+      ),
+    );
+  }
+}
+
+class _PingNumberInput extends StatefulWidget {
+  const _PingNumberInput({
     required this.value,
     required this.enabled,
+    required this.min,
+    required this.max,
     required this.onChanged,
+    this.step = 1,
   });
 
   final int value;
   final bool enabled;
+  final int min;
+  final int max;
+  final int step;
   final ValueChanged<int> onChanged;
 
   @override
-  State<_PingCountInput> createState() => _PingCountInputState();
+  State<_PingNumberInput> createState() => _PingNumberInputState();
 }
 
-class _PingCountInputState extends State<_PingCountInput> {
+class _PingNumberInputState extends State<_PingNumberInput> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
 
@@ -584,7 +664,7 @@ class _PingCountInputState extends State<_PingCountInput> {
   }
 
   @override
-  void didUpdateWidget(covariant _PingCountInput oldWidget) {
+  void didUpdateWidget(covariant _PingNumberInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.value != oldWidget.value && !_focusNode.hasFocus) {
       _setText(widget.value.toString());
@@ -608,7 +688,7 @@ class _PingCountInputState extends State<_PingCountInput> {
 
   void _step(int delta) {
     if (!widget.enabled) return;
-    final next = (widget.value + delta).clamp(1, 20);
+    final next = (widget.value + delta).clamp(widget.min, widget.max).toInt();
     widget.onChanged(next);
     _setText(next.toString());
   }
@@ -616,12 +696,14 @@ class _PingCountInputState extends State<_PingCountInput> {
   void _handleChanged(String rawValue) {
     final value = int.tryParse(rawValue);
     if (value == null) return;
-    widget.onChanged(value.clamp(1, 20));
+    widget.onChanged(value.clamp(widget.min, widget.max).toInt());
   }
 
   void _commit() {
     final value = int.tryParse(_controller.text);
-    final normalized = (value ?? widget.value).clamp(1, 20);
+    final normalized = (value ?? widget.value)
+        .clamp(widget.min, widget.max)
+        .toInt();
     widget.onChanged(normalized);
     _setText(normalized.toString());
   }
@@ -642,8 +724,8 @@ class _PingCountInputState extends State<_PingCountInput> {
         children: [
           _StepButton(
             icon: Icons.remove,
-            enabled: widget.enabled && widget.value > 1,
-            onPressed: () => _step(-1),
+            enabled: widget.enabled && widget.value > widget.min,
+            onPressed: () => _step(-widget.step),
           ),
           SizedBox(
             width: 68,
@@ -657,7 +739,7 @@ class _PingCountInputState extends State<_PingCountInput> {
               cursorColor: _primary,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(2),
+                LengthLimitingTextInputFormatter(widget.max.toString().length),
               ],
               onChanged: _handleChanged,
               onEditingComplete: _commit,
@@ -674,8 +756,8 @@ class _PingCountInputState extends State<_PingCountInput> {
           ),
           _StepButton(
             icon: Icons.add,
-            enabled: widget.enabled && widget.value < 20,
-            onPressed: () => _step(1),
+            enabled: widget.enabled && widget.value < widget.max,
+            onPressed: () => _step(widget.step),
           ),
         ],
       ),

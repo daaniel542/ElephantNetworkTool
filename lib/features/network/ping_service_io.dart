@@ -5,8 +5,18 @@ import 'ping_event.dart';
 class PingService {
   dart_ping.Ping? _activePing;
 
-  Stream<PingEvent> ping({required String host, required int count}) async* {
-    _activePing = dart_ping.Ping(host, count: count);
+  Stream<PingEvent> ping({
+    required String host,
+    required int count,
+    required Duration timeout,
+    required int ttl,
+  }) async* {
+    _activePing = dart_ping.Ping(
+      host,
+      count: count,
+      timeout: _timeoutSeconds(timeout),
+      ttl: ttl,
+    );
 
     await for (final event in _activePing!.stream) {
       switch (event) {
@@ -30,7 +40,7 @@ class PingService {
           yield PingSummary(
             transmitted: event.transmitted,
             received: event.received,
-            stats: PingStats(avg: event.time),
+            stats: _mapStats(event.stats),
           );
       }
     }
@@ -42,6 +52,24 @@ class PingService {
   }
 
   void cancel() => stopPing();
+
+  int _timeoutSeconds(Duration timeout) {
+    final milliseconds = timeout.inMilliseconds;
+    if (milliseconds <= 0) return 1;
+    return (milliseconds / Duration.millisecondsPerSecond).ceil();
+  }
+
+  PingStats? _mapStats(dart_ping.RoundTripStats? stats) {
+    if (stats == null) return null;
+    return PingStats(
+      min: stats.min,
+      avg: stats.avg,
+      max: stats.max,
+      stddev: stats.stddev,
+      jitter: stats.jitter,
+      sampleCount: stats.sampleCount,
+    );
+  }
 
   String _describeError(dart_ping.ErrorType error) {
     return switch (error) {

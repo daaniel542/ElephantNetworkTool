@@ -35,7 +35,7 @@ class TracerouteHop {
 
   String get displayAddress {
     return address ??
-        (status == TracerouteHopStatus.timeout ? 'Request Timeout' : '');
+        (status == TracerouteHopStatus.timeout ? 'Request Timed Out' : '');
   }
 }
 
