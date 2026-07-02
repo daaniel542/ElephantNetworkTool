@@ -17,6 +17,10 @@ const _controlBorder = Color(0xFFCBD5E1);
 const _errorBg = Color(0xFFFEF2F2);
 const _errorBorder = Color(0xFFFECACA);
 const _errorText = Color(0xFFB91C1C);
+const _wideCardHeight = 820.0;
+const _textBoxHeight = 260.0;
+const _textBoxPadding = EdgeInsets.all(18);
+const _operationButtonGap = 184.0;
 
 class ConverterScreen extends StatefulWidget {
   const ConverterScreen({super.key});
@@ -70,13 +74,16 @@ class _ConverterScreenState extends State<ConverterScreen> {
                 );
               }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 500, child: input),
-                  const SizedBox(width: 32),
-                  Expanded(child: output),
-                ],
+              return SizedBox(
+                height: _wideCardHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: input),
+                    const SizedBox(width: 32),
+                    Expanded(child: output),
+                  ],
+                ),
               );
             },
           ),
@@ -99,12 +106,11 @@ class _InputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle('Input'),
-          const SizedBox(height: 6),
-          const _BodyText('Paste text, encoded content, or values to hash.'),
+          const _CardIntro(
+            title: 'Input',
+            description: 'Paste text, encoded content, or values to hash.',
+          ),
           const SizedBox(height: 34),
-          const _FieldLabel('Input Text'),
-          const SizedBox(height: 10),
           _TextArea(
             controller: inputController,
             onChanged: controller.setInput,
@@ -116,7 +122,7 @@ class _InputCard extends StatelessWidget {
             value: controller.operation,
             onChanged: controller.setOperation,
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: _operationButtonGap),
           _PrimaryButton(
             label: 'Convert',
             width: 150,
@@ -147,10 +153,10 @@ class _OutputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle('Output'),
-          const SizedBox(height: 6),
-          const _BodyText(
-            'Copy-friendly results. All Hashing/Encoding/Decoding is done locally.',
+          const _CardIntro(
+            title: 'Output',
+            description:
+                'Copy-friendly results. All Hashing/Encoding/Decoding is done locally.',
           ),
           const SizedBox(height: 34),
           _OutputArea(
@@ -278,8 +284,15 @@ class _TextArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 220,
+    return Container(
+      height: _textBoxHeight,
+      width: double.infinity,
+      padding: _textBoxPadding,
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _controlBorder),
+      ),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
@@ -297,10 +310,13 @@ class _TextArea extends StatelessWidget {
           height: 1.4,
           letterSpacing: 0,
         ),
-        decoration: _inputDecoration(
-          borderRadius: 12,
-          contentPadding: const EdgeInsets.all(18),
+        decoration: InputDecoration.collapsed(
           hintText: 'ex. hello internet',
+          hintStyle: TextStyle(
+            color: _muted.withValues(alpha: 0.62),
+            fontSize: 14,
+            letterSpacing: 0,
+          ),
         ),
       ),
     );
@@ -321,9 +337,9 @@ class _OutputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 220,
+      height: _textBoxHeight,
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: _textBoxPadding,
       decoration: BoxDecoration(
         color: isError ? _errorBg : _background,
         borderRadius: BorderRadius.circular(12),
@@ -361,38 +377,92 @@ class _OperationDropdown extends StatefulWidget {
 
 class _OperationDropdownState extends State<_OperationDropdown> {
   bool _isOpen = false;
+  final _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+
+  @override
+  void didUpdateWidget(_OperationDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _overlayEntry?.markNeedsBuild();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _close() {
+    _removeOverlay();
+    if (mounted) setState(() => _isOpen = false);
+  }
 
   void _select(ConverterOperation operation) {
     widget.onChanged(operation);
-    setState(() => _isOpen = false);
+    _close();
+  }
+
+  void _toggle() {
+    if (_isOpen) {
+      _close();
+    } else {
+      _overlayEntry = OverlayEntry(
+        builder: (_) => Stack(
+          children: [
+            // Transparent barrier – tapping outside closes the panel
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _close,
+                behavior: HitTestBehavior.translucent,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 8),
+              child: Material(
+                color: Colors.transparent,
+                child: _InlineOptionPanel(
+                  width: 360,
+                  children: [
+                    for (final operation in ConverterOperation.values)
+                      _InlineOptionButton(
+                        label: _operationLabel(operation),
+                        selected: operation == widget.value,
+                        onTap: () => _select(operation),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      Overlay.of(context).insert(_overlayEntry!);
+      setState(() => _isOpen = true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _DropdownButtonFrame(
-          width: 260,
-          label: _operationLabel(widget.value),
-          isOpen: _isOpen,
-          onTap: () => setState(() => _isOpen = !_isOpen),
-        ),
-        if (_isOpen) ...[
-          const SizedBox(height: 8),
-          _InlineOptionPanel(
-            width: 360,
-            children: [
-              for (final operation in ConverterOperation.values)
-                _InlineOptionButton(
-                  label: _operationLabel(operation),
-                  selected: operation == widget.value,
-                  onTap: () => _select(operation),
-                ),
-            ],
-          ),
-        ],
-      ],
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: _DropdownButtonFrame(
+        width: 260,
+        label: _operationLabel(widget.value),
+        isOpen: _isOpen,
+        onTap: _toggle,
+      ),
     );
   }
 }
@@ -537,6 +607,36 @@ class _CardTitle extends StatelessWidget {
   }
 }
 
+class _CardIntro extends StatelessWidget {
+  const _CardIntro({required this.title, required this.description});
+
+  final String title;
+  final String description;
+
+  // Fixed height so both cards' headers are always identical,
+  // keeping the grey input/output boxes aligned at the same Y.
+  static const double _fixedHeight = 96.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _fixedHeight,
+      child: OverflowBox(
+        maxHeight: _fixedHeight,
+        alignment: Alignment.topLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _CardTitle(title),
+            const SizedBox(height: 6),
+            _BodyText(description),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BodyText extends StatelessWidget {
   const _BodyText(this.text);
   final String text;
@@ -666,34 +766,4 @@ String _operationLabel(ConverterOperation operation) {
     ConverterOperation.sha1 => 'SHA-1 Hash',
     ConverterOperation.sha256 => 'SHA-256 Hash',
   };
-}
-
-InputDecoration _inputDecoration({
-  String? hintText,
-  double borderRadius = 10,
-  EdgeInsetsGeometry contentPadding = const EdgeInsets.symmetric(
-    horizontal: 14,
-    vertical: 15,
-  ),
-}) {
-  return InputDecoration(
-    hintText: hintText,
-    hintStyle: TextStyle(
-      color: _muted.withValues(alpha: 0.62),
-      fontSize: 14,
-      letterSpacing: 0,
-    ),
-    filled: true,
-    fillColor: _surface,
-    isDense: true,
-    contentPadding: contentPadding,
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(borderRadius),
-      borderSide: const BorderSide(color: _controlBorder),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(borderRadius),
-      borderSide: const BorderSide(color: _primary),
-    ),
-  );
 }
