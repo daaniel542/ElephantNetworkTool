@@ -22,7 +22,7 @@ At the conclusion of a ping session, the tool must calculate and display:
   * **Minimum RTT (ms):** The fastest response time.
   * **Maximum RTT (ms):** The slowest response time.
   * **Average RTT (ms):** The mean response time across all received packets.
-* **Standard Deviation (StdDev) (ms):** The slowest response time.
+* **Standard Deviation (StdDev) (ms):** The avg response time.
 * **Jitter (ms):** The statistical variance/fluctuation in latency between successive packets (crucial for assessing connection stability).
 
 ## 3. Comprehensive Testing Checklist

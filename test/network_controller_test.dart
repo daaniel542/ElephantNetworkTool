@@ -21,7 +21,13 @@ void main() {
           const PingSummary(
             transmitted: 1,
             received: 1,
-            stats: PingStats(avg: Duration(milliseconds: 24)),
+            stats: PingStats(
+              min: Duration(milliseconds: 24),
+              avg: Duration(milliseconds: 24),
+              max: Duration(milliseconds: 24),
+              stddev: Duration.zero,
+              sampleCount: 1,
+            ),
           ),
         ]),
         dnsService: _FakeDnsService(),
@@ -37,13 +43,122 @@ void main() {
       );
       expect(
         controller.activeOutputLines,
+        contains('  timeout=2000ms  ttl=255'),
+      );
+      expect(
+        controller.activeOutputLines,
         contains('  # 2  142.250.190.46          24 ms   ttl=57'),
       );
       expect(
         controller.activeOutputLines,
-        contains('  Packets : 1 sent, 1 received, 0% loss'),
+        contains('  Packets : 1 sent, 1 received, 0 lost (0% loss)'),
       );
-      expect(controller.activeOutputLines, contains('  Latency : 24 ms avg'));
+      expect(
+        controller.activeOutputLines,
+        contains('  RTT     : 24 min / 24 avg / 24 max ms'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('  Quality : 0 stddev / ? jitter ms'),
+      );
+
+      controller.dispose();
+    });
+
+    test('passes configured ping options to the ping service', () async {
+      final pingService = _FakePingService([
+        const PingSummary(transmitted: 0, received: 0),
+      ]);
+      final controller =
+          NetworkController(
+              pingService: pingService,
+              dnsService: _FakeDnsService(),
+              tracerouteService: _FakeTracerouteService(),
+            )
+            ..setPingHost('1.1.1.1')
+            ..setPingCount(12)
+            ..setPingTimeoutMs(3500)
+            ..setPingTtl(64);
+
+      await controller.startPing();
+
+      expect(pingService.lastHost, '1.1.1.1');
+      expect(pingService.lastCount, 12);
+      expect(pingService.lastTimeout, const Duration(milliseconds: 3500));
+      expect(pingService.lastTtl, 64);
+      expect(
+        controller.activeOutputLines,
+        contains('PING 1.1.1.1 (12 packets)'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('  timeout=3500ms  ttl=64'),
+      );
+
+      controller.dispose();
+    });
+
+    test('clamps ping option boundaries', () {
+      final controller =
+          NetworkController(
+              pingService: _FakePingService(const []),
+              dnsService: _FakeDnsService(),
+              tracerouteService: _FakeTracerouteService(),
+            )
+            ..setPingCount(0)
+            ..setPingTimeoutMs(0)
+            ..setPingTtl(0);
+
+      expect(controller.pingCount, PingDefaults.minCount);
+      expect(controller.pingTimeoutMs, PingDefaults.minTimeoutMs);
+      expect(controller.pingTtl, PingDefaults.minTtl);
+
+      controller
+        ..setPingCount(10000)
+        ..setPingTimeoutMs(10000)
+        ..setPingTtl(10000);
+
+      expect(controller.pingCount, PingDefaults.maxCount);
+      expect(controller.pingTimeoutMs, PingDefaults.maxTimeoutMs);
+      expect(controller.pingTtl, PingDefaults.maxTtl);
+
+      controller.dispose();
+    });
+
+    test('formats full ping metrics in the terminal summary', () async {
+      final controller = NetworkController(
+        pingService: _FakePingService([
+          const PingSummary(
+            transmitted: 4,
+            received: 3,
+            stats: PingStats(
+              min: Duration(milliseconds: 10),
+              avg: Duration(milliseconds: 20),
+              max: Duration(milliseconds: 40),
+              stddev: Duration(milliseconds: 12),
+              jitter: Duration(milliseconds: 15),
+              sampleCount: 3,
+            ),
+          ),
+        ]),
+        dnsService: _FakeDnsService(),
+        tracerouteService: _FakeTracerouteService(),
+      )..setPingHost('8.8.8.8');
+
+      await controller.startPing();
+
+      expect(
+        controller.activeOutputLines,
+        contains('  Packets : 4 sent, 3 received, 1 lost (25% loss)'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('  RTT     : 10 min / 20 avg / 40 max ms'),
+      );
+      expect(
+        controller.activeOutputLines,
+        contains('  Quality : 12 stddev / 15 jitter ms'),
+      );
 
       controller.dispose();
     });
@@ -195,9 +310,23 @@ class _FakePingService extends PingService {
 
   final List<PingEvent> events;
   bool stopCalled = false;
+  String? lastHost;
+  int? lastCount;
+  Duration? lastTimeout;
+  int? lastTtl;
 
   @override
-  Stream<PingEvent> ping({required String host, required int count}) async* {
+  Stream<PingEvent> ping({
+    required String host,
+    required int count,
+    required Duration timeout,
+    required int ttl,
+  }) async* {
+    lastHost = host;
+    lastCount = count;
+    lastTimeout = timeout;
+    lastTtl = ttl;
+
     for (final event in events) {
       yield event;
     }

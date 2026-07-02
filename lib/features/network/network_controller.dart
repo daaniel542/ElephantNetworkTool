@@ -78,14 +78,26 @@ class NetworkController extends ChangeNotifier {
   /// Host or IP address entered by the user.
   String pingHost = '';
 
-  /// Number of ICMP packets to send. Default 5, max 20.
-  int pingCount = 5;
+  /// Number of ICMP packets to send when continuous mode is disabled.
+  int pingCount = PingDefaults.count;
+
+  /// Per-packet timeout in milliseconds.
+  int pingTimeoutMs = PingDefaults.timeoutMs;
+
+  /// Time-to-live/hop limit for outgoing ping packets.
+  int pingTtl = PingDefaults.ttl;
 
   /// Whether a ping stream is currently active.
   bool isPinging = false;
 
   /// Accumulated terminal output lines from the active ping session.
   final List<String> pingOutput = [];
+
+  /// Structured ping result rows (responses + errors) for the table UI.
+  final List<PingEvent> pingRows = [];
+
+  /// Summary data from the completed ping session.
+  PingSummary? pingSummaryData;
 
   /// Optional error message to display in the ping panel.
   String? pingError;
@@ -201,7 +213,21 @@ class NetworkController extends ChangeNotifier {
   }
 
   void setPingCount(int value) {
-    pingCount = value.clamp(1, 20);
+    pingCount = value
+        .clamp(PingDefaults.minCount, PingDefaults.maxCount)
+        .toInt();
+    _notify();
+  }
+
+  void setPingTimeoutMs(int value) {
+    pingTimeoutMs = value
+        .clamp(PingDefaults.minTimeoutMs, PingDefaults.maxTimeoutMs)
+        .toInt();
+    _notify();
+  }
+
+  void setPingTtl(int value) {
+    pingTtl = value.clamp(PingDefaults.minTtl, PingDefaults.maxTtl).toInt();
     _notify();
   }
 
@@ -226,6 +252,8 @@ class NetworkController extends ChangeNotifier {
 
     await stopTraceroute(addStopLine: false);
     pingOutput.clear();
+    pingRows.clear();
+    pingSummaryData = null;
     pingError = null;
 
     if (host.isEmpty) {
@@ -237,6 +265,7 @@ class NetworkController extends ChangeNotifier {
     isPinging = true;
     pingOutput
       ..add('PING $host ($pingCount packets)')
+      ..add('  timeout=${pingTimeoutMs}ms  ttl=$pingTtl')
       ..add('────────────────────────────────────────');
     _notify();
 
@@ -244,8 +273,15 @@ class NetworkController extends ChangeNotifier {
       await for (final event in _pingService.ping(
         host: host,
         count: pingCount,
+        timeout: Duration(milliseconds: pingTimeoutMs),
+        ttl: pingTtl,
       )) {
         pingOutput.addAll(_formatPingEvent(event, host));
+        if (event is PingSummary) {
+          pingSummaryData = event;
+        } else {
+          pingRows.add(event);
+        }
         _notify();
       }
     } catch (_) {
@@ -264,6 +300,8 @@ class NetworkController extends ChangeNotifier {
     _pingService.stopPing();
     isPinging = false;
     pingOutput.add('--- Ping stopped by user ---');
+    // Mark as stopped so the UI can show a stopped indicator.
+    pingSummaryData = null;
     _notify();
   }
 
@@ -405,23 +443,34 @@ class NetworkController extends ChangeNotifier {
   }
 
   List<String> _formatSummary(PingSummary summary) {
+    final lost = summary.transmitted > summary.received
+        ? summary.transmitted - summary.received
+        : 0;
     final lines = [
       '',
       '────────────────────────────────────────',
       '  Packets : ${summary.transmitted} sent, '
           '${summary.received} received, '
-          '${summary.packetLoss.toStringAsFixed(0)}% loss',
+          '$lost lost (${summary.packetLoss.toStringAsFixed(0)}% loss)',
     ];
 
     final stats = summary.stats;
     if (stats?.min != null && stats?.avg != null && stats?.max != null) {
       lines.add(
-        '  Latency : ${_formatDurationMs(stats!.min)} min / '
+        '  RTT     : ${_formatDurationMs(stats!.min)} min / '
         '${_formatDurationMs(stats.avg)} avg / '
         '${_formatDurationMs(stats.max)} max ms',
       );
+      if (stats.stddev != null || stats.jitter != null) {
+        lines.add(
+          '  Quality : ${_formatDurationMs(stats.stddev)} stddev / '
+          '${_formatDurationMs(stats.jitter)} jitter ms',
+        );
+      }
     } else if (stats?.avg != null) {
-      lines.add('  Latency : ${_formatDurationMs(stats!.avg)} ms avg');
+      lines.add('  RTT     : ${_formatDurationMs(stats!.avg)} ms avg');
+    } else if (summary.transmitted > 0) {
+      lines.add('  RTT     : No replies received');
     }
     return lines;
   }
