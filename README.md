@@ -28,6 +28,9 @@ cross-compile desktop apps from one operating system to another.
 
 ## Release Builds
 
+**Versions of ENT can be found in the Github Actions page with their respective OS versions allowing for 
+quick download and installation of the app instead of cloning and releasing the Flutter builds.**
+
 Build the native release on each target OS:
 
 ```sh
@@ -43,9 +46,7 @@ Release outputs:
 - Linux: `build/linux/x64/release/bundle/`
 
 For internal distribution, package each release folder as a zip, label it with
-the app version and OS, and send the matching package to each IT member. Versions of the zip file
-can be found in the Github Actions page allowing for quick download and installation of the 
-app instead of cloning and releasing the flutter builds.
+the app version and OS, and send the matching package to each IT member. 
 
 ## Web Limitations
 
