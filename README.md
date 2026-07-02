@@ -1,4 +1,4 @@
-# Elephant Network Tool
+# Elephant Network Tool (ENT)
 
 Internal network utility for Elephant Technologies LTD.
 
