@@ -43,7 +43,9 @@ Release outputs:
 - Linux: `build/linux/x64/release/bundle/`
 
 For internal distribution, package each release folder as a zip, label it with
-the app version and OS, and send the matching package to each IT member.
+the app version and OS, and send the matching package to each IT member. Versions of the zip file
+can be found in the Github Actions page allowing for quick download and installation of the 
+app instead of cloning and releasing the flutter builds.
 
 ## Web Limitations
 
