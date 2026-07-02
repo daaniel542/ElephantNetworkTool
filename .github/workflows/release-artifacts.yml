@@ -1,0 +1,91 @@
+name: Release Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - final-testing
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-latest
+            artifact_name: Elephant-Network-Tool-macos
+            zip_name: Elephant-Network-Tool-macos.zip
+          - platform: windows
+            runner: windows-latest
+            artifact_name: Elephant-Network-Tool-windows
+            zip_name: Elephant-Network-Tool-windows.zip
+          - platform: linux
+            runner: ubuntu-latest
+            artifact_name: Elephant-Network-Tool-linux
+            zip_name: Elephant-Network-Tool-linux.zip
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build macOS release
+        if: matrix.platform == 'macos'
+        run: flutter build macos --release
+
+      - name: Package macOS release
+        if: matrix.platform == 'macos'
+        run: |
+          mkdir -p release/macos
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/macos/Build/Products/Release/Elephant Network Tool.app" \
+            "release/macos/${{ matrix.zip_name }}"
+
+      - name: Build Windows release
+        if: matrix.platform == 'windows'
+        run: flutter build windows --release
+
+      - name: Package Windows release
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/windows | Out-Null
+          Compress-Archive `
+            -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath "release\windows\${{ matrix.zip_name }}" `
+            -Force
+
+      - name: Build Linux release
+        if: matrix.platform == 'linux'
+        run: flutter build linux --release
+
+      - name: Package Linux release
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p release/linux
+          cd build/linux/x64/release
+          zip -r ../../../../release/linux/${{ matrix.zip_name }} bundle
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release/**/${{ matrix.zip_name }}
+          if-no-files-found: error
