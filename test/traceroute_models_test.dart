@@ -55,6 +55,20 @@ void main() {
       expect(hop.averageRtt, isNull);
       expect(hop.displayAddress, 'Request Timed Out');
     });
+
+    test(
+      'preserves unsupported platform messages separately from timeouts',
+      () {
+        final hop = TracerouteHop(
+          hopNumber: 1,
+          status: TracerouteHopStatus.unsupported,
+          message: 'Traceroute is not supported on web.',
+        );
+
+        expect(hop.averageRtt, isNull);
+        expect(hop.displayAddress, 'Traceroute is not supported on web.');
+      },
+    );
   });
 
   group('TracerouteSummary', () {

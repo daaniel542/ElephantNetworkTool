@@ -8,6 +8,7 @@ class PingService {
     required int ttl,
   }) async* {
     yield PingError(
+      isUnsupported: true,
       message:
           'Ping requires raw ICMP access, which browser builds cannot use. Run the desktop app for ping.',
     );

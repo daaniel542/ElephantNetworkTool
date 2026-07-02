@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -29,11 +30,16 @@ class DnsServiceException implements Exception {
 ///
 /// Endpoint: https://cloudflare-dns.com/dns-query
 class DnsService {
-  DnsService({http.Client? client}) : _client = client ?? http.Client();
+  DnsService({
+    http.Client? client,
+    Duration timeout = const Duration(seconds: 5),
+  }) : _client = client ?? http.Client(),
+       _timeout = timeout;
 
   static const _baseUrl = 'https://cloudflare-dns.com/dns-query';
 
   final http.Client _client;
+  final Duration _timeout;
 
   /// Resolve [domain] for the given [type] and return DNS answer records.
   Future<List<DnsRecord>> lookup({
@@ -48,10 +54,9 @@ class DnsService {
 
     late http.Response response;
     try {
-      response = await _client.get(
-        uri,
-        headers: const {'Accept': 'application/dns-json'},
-      );
+      response = await _client
+          .get(uri, headers: const {'Accept': 'application/dns-json'})
+          .timeout(_timeout);
     } catch (_) {
       throw const DnsServiceException(
         'Network unavailable. Check local interface connections.',
@@ -81,6 +86,11 @@ class DnsService {
       throw const DnsServiceException(
         'DNS lookup failed. Please check the domain.',
       );
+    }
+
+    final status = (body['Status'] as num?)?.toInt();
+    if (status != null && status != 0) {
+      throw DnsServiceException(_statusCodeMessage(status));
     }
 
     final answers = body['Answer'];
@@ -118,6 +128,14 @@ class DnsService {
     }
 
     return value;
+  }
+
+  String _statusCodeMessage(int status) {
+    return switch (status) {
+      2 => 'DNS resolver failed. Please try again later.',
+      3 => 'Domain does not exist.',
+      _ => 'DNS lookup failed. Please check the domain.',
+    };
   }
 
   String _typeCodeToName(Object? code) {

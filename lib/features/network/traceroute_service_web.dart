@@ -8,7 +8,7 @@ class TracerouteService {
   }) async* {
     yield TracerouteHop(
       hopNumber: 1,
-      status: TracerouteHopStatus.timeout,
+      status: TracerouteHopStatus.unsupported,
       message: 'Traceroute is not supported on web.',
     );
   }

@@ -1,4 +1,4 @@
-enum TracerouteHopStatus { pending, success, timeout }
+enum TracerouteHopStatus { pending, success, timeout, unsupported }
 
 class TracerouteHop {
   TracerouteHop({
@@ -35,7 +35,11 @@ class TracerouteHop {
 
   String get displayAddress {
     return address ??
-        (status == TracerouteHopStatus.timeout ? 'Request Timed Out' : '');
+        switch (status) {
+          TracerouteHopStatus.timeout => 'Request Timed Out',
+          TracerouteHopStatus.unsupported => message,
+          _ => '',
+        };
   }
 }
 

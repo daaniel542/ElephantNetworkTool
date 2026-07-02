@@ -2,9 +2,20 @@ import 'package:dart_ping/dart_ping.dart';
 
 import 'traceroute_models.dart';
 
+typedef TracerouteProbeRunner =
+    Future<TracerouteProbeResult> Function({
+      required String host,
+      required int ttl,
+      required int timeout,
+    });
+
 class TracerouteService {
+  TracerouteService({TracerouteProbeRunner? probeRunner})
+    : _probeRunner = probeRunner;
+
   static const int _probeCount = 3;
 
+  final TracerouteProbeRunner? _probeRunner;
   Ping? _activePing;
   bool _isStopped = false;
 
@@ -27,7 +38,11 @@ class TracerouteService {
       for (var probe = 0; probe < _probeCount; probe += 1) {
         if (_isStopped) break;
 
-        final result = await _runProbe(host: host, ttl: ttl, timeout: timeout);
+        final result = await _runConfiguredProbe(
+          host: host,
+          ttl: ttl,
+          timeout: timeout,
+        );
         if (_isStopped) break;
 
         probes.add(result.latency);
@@ -80,7 +95,26 @@ class TracerouteService {
     }
   }
 
-  Future<_TracerouteProbeResult> _runProbe({
+  Future<TracerouteProbeResult> _runConfiguredProbe({
+    required String host,
+    required int ttl,
+    required int timeout,
+  }) async {
+    try {
+      final probeRunner = _probeRunner;
+      if (probeRunner != null) {
+        return await probeRunner(host: host, ttl: ttl, timeout: timeout);
+      }
+      return await _runProbe(host: host, ttl: ttl, timeout: timeout);
+    } catch (_) {
+      return const TracerouteProbeResult(
+        message: 'Trace failed. Please check the host.',
+        shouldStopTrace: true,
+      );
+    }
+  }
+
+  Future<TracerouteProbeResult> _runProbe({
     required String host,
     required int ttl,
     required int timeout,
@@ -94,7 +128,7 @@ class TracerouteService {
 
         switch (event) {
           case PingResponse():
-            return _TracerouteProbeResult(
+            return TracerouteProbeResult(
               address: event.ip ?? host,
               latency: event.time ?? stopwatch.elapsed,
               message: 'Reached destination',
@@ -103,11 +137,11 @@ class TracerouteService {
           case PingError():
             return _probeResultFromError(event, stopwatch.elapsed);
           case PingSummary():
-            return const _TracerouteProbeResult(message: 'Request timed out.');
+            return const TracerouteProbeResult(message: 'Request timed out.');
         }
       }
     } catch (_) {
-      return const _TracerouteProbeResult(
+      return const TracerouteProbeResult(
         message: 'Trace failed. Please check the host.',
         shouldStopTrace: true,
       );
@@ -123,32 +157,32 @@ class TracerouteService {
       }
     }
 
-    return const _TracerouteProbeResult(message: 'Request timed out.');
+    return const TracerouteProbeResult(message: 'Request timed out.');
   }
 
-  _TracerouteProbeResult _probeResultFromError(
+  TracerouteProbeResult _probeResultFromError(
     PingError error,
     Duration elapsed,
   ) {
     return switch (error.error) {
-      ErrorType.timeToLiveExceeded => _TracerouteProbeResult(
+      ErrorType.timeToLiveExceeded => TracerouteProbeResult(
         address: error.ip,
         latency: error.ip == null ? null : elapsed,
         message: 'TTL exceeded',
       ),
-      ErrorType.requestTimedOut => const _TracerouteProbeResult(
+      ErrorType.requestTimedOut => const TracerouteProbeResult(
         message: 'Request timed out.',
       ),
-      ErrorType.noReply => const _TracerouteProbeResult(message: 'No reply.'),
-      ErrorType.noRoute => const _TracerouteProbeResult(
+      ErrorType.noReply => const TracerouteProbeResult(message: 'No reply.'),
+      ErrorType.noRoute => const TracerouteProbeResult(
         message: 'No route to host.',
         shouldStopTrace: true,
       ),
-      ErrorType.unknownHost => const _TracerouteProbeResult(
+      ErrorType.unknownHost => const TracerouteProbeResult(
         message: 'Unknown host.',
         shouldStopTrace: true,
       ),
-      ErrorType.unknown => _TracerouteProbeResult(
+      ErrorType.unknown => TracerouteProbeResult(
         message: error.message ?? 'Unknown trace error.',
         shouldStopTrace: true,
       ),
@@ -156,8 +190,8 @@ class TracerouteService {
   }
 }
 
-class _TracerouteProbeResult {
-  const _TracerouteProbeResult({
+class TracerouteProbeResult {
+  const TracerouteProbeResult({
     required this.message,
     this.address,
     this.latency,

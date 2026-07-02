@@ -24,10 +24,43 @@ void main() {
       expect(decoded, input);
     });
 
+    test('Base64 handles unicode input', () {
+      const input = 'network latency 測試 🚀';
+      final encoded = service.execute(
+        input: input,
+        operation: ConverterOperation.base64Encode,
+      );
+      final decoded = service.execute(
+        input: encoded,
+        operation: ConverterOperation.base64Decode,
+      );
+
+      expect(decoded, input);
+    });
+
+    test('Base64 decode trims surrounding whitespace', () {
+      final decoded = service.execute(
+        input: '  SGVsbG8=  ',
+        operation: ConverterOperation.base64Decode,
+      );
+
+      expect(decoded, 'Hello');
+    });
+
     test('Base64 decode throws on invalid input', () {
       expect(
         () => service.execute(
           input: '!!!not_base64!!!',
+          operation: ConverterOperation.base64Decode,
+        ),
+        throwsA(isA<ConverterServiceException>()),
+      );
+    });
+
+    test('Base64 decode throws on invalid UTF-8 bytes', () {
+      expect(
+        () => service.execute(
+          input: '/w==',
           operation: ConverterOperation.base64Decode,
         ),
         throwsA(isA<ConverterServiceException>()),
@@ -51,6 +84,29 @@ void main() {
       expect(decoded, input);
     });
 
+    test('Hex handles unicode input', () {
+      const input = 'dns 測試';
+      final encoded = service.execute(
+        input: input,
+        operation: ConverterOperation.hexEncode,
+      );
+      final decoded = service.execute(
+        input: encoded,
+        operation: ConverterOperation.hexDecode,
+      );
+
+      expect(decoded, input);
+    });
+
+    test('Hex decode ignores whitespace between byte pairs', () {
+      final decoded = service.execute(
+        input: '66 6c 75 74 74 65 72',
+        operation: ConverterOperation.hexDecode,
+      );
+
+      expect(decoded, 'flutter');
+    });
+
     test('Hex decode throws on invalid input', () {
       expect(
         () => service.execute(
@@ -58,6 +114,44 @@ void main() {
           operation: ConverterOperation.hexDecode,
         ),
         throwsA(isA<ConverterServiceException>()),
+      );
+    });
+
+    test('Hex decode throws on invalid UTF-8 bytes', () {
+      expect(
+        () => service.execute(
+          input: 'ff',
+          operation: ConverterOperation.hexDecode,
+        ),
+        throwsA(isA<ConverterServiceException>()),
+      );
+    });
+
+    test('large input round-trips through Base64 and Hex', () {
+      final input = List.filled(8192, 'network-tool').join();
+
+      final base64Encoded = service.execute(
+        input: input,
+        operation: ConverterOperation.base64Encode,
+      );
+      final hexEncoded = service.execute(
+        input: input,
+        operation: ConverterOperation.hexEncode,
+      );
+
+      expect(
+        service.execute(
+          input: base64Encoded,
+          operation: ConverterOperation.base64Decode,
+        ),
+        input,
+      );
+      expect(
+        service.execute(
+          input: hexEncoded,
+          operation: ConverterOperation.hexDecode,
+        ),
+        input,
       );
     });
 
@@ -102,6 +196,18 @@ void main() {
       expect(
         result,
         '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
+      );
+    });
+
+    test('SHA-256 of "abc" matches known vector', () {
+      final result = service.execute(
+        input: 'abc',
+        operation: ConverterOperation.sha256,
+      );
+
+      expect(
+        result,
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
       );
     });
   });

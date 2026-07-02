@@ -17,10 +17,10 @@ const _controlBorder = Color(0xFFCBD5E1);
 const _errorBg = Color(0xFFFEF2F2);
 const _errorBorder = Color(0xFFFECACA);
 const _errorText = Color(0xFFB91C1C);
-const _wideCardHeight = 820.0;
+const _wideCardHeight = 700.0;
 const _textBoxHeight = 260.0;
 const _textBoxPadding = EdgeInsets.all(18);
-const _operationButtonGap = 184.0;
+const _operationButtonGap = 60.0;
 
 class ConverterScreen extends StatefulWidget {
   const ConverterScreen({super.key});
@@ -402,92 +402,38 @@ class _OperationDropdown extends StatefulWidget {
 
 class _OperationDropdownState extends State<_OperationDropdown> {
   bool _isOpen = false;
-  final _layerLink = LayerLink();
-  OverlayEntry? _overlayEntry;
-
-  @override
-  void didUpdateWidget(_OperationDropdown oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _overlayEntry?.markNeedsBuild();
-    }
-  }
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    super.dispose();
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  void _close() {
-    _removeOverlay();
-    if (mounted) setState(() => _isOpen = false);
-  }
 
   void _select(ConverterOperation operation) {
     widget.onChanged(operation);
-    _close();
-  }
-
-  void _toggle() {
-    if (_isOpen) {
-      _close();
-    } else {
-      _overlayEntry = OverlayEntry(
-        builder: (_) => Stack(
-          children: [
-            // Transparent barrier – tapping outside closes the panel
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _close,
-                behavior: HitTestBehavior.translucent,
-                child: const SizedBox.expand(),
-              ),
-            ),
-            CompositedTransformFollower(
-              link: _layerLink,
-              showWhenUnlinked: false,
-              targetAnchor: Alignment.bottomLeft,
-              followerAnchor: Alignment.topLeft,
-              offset: const Offset(0, 8),
-              child: Material(
-                color: Colors.transparent,
-                child: _InlineOptionPanel(
-                  width: 360,
-                  children: [
-                    for (final operation in ConverterOperation.values)
-                      _InlineOptionButton(
-                        label: _operationLabel(operation),
-                        selected: operation == widget.value,
-                        onTap: () => _select(operation),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      Overlay.of(context).insert(_overlayEntry!);
-      setState(() => _isOpen = true);
-    }
+    setState(() => _isOpen = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: _DropdownButtonFrame(
-        width: 260,
-        label: _operationLabel(widget.value),
-        isOpen: _isOpen,
-        onTap: _toggle,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DropdownButtonFrame(
+          width: 260,
+          label: _operationLabel(widget.value),
+          isOpen: _isOpen,
+          onTap: () => setState(() => _isOpen = !_isOpen),
+        ),
+        if (_isOpen) ...[
+          const SizedBox(height: 8),
+          _InlineOptionPanel(
+            width: 360,
+            children: [
+              for (final operation in ConverterOperation.values)
+                _InlineOptionButton(
+                  label: _operationLabel(operation),
+                  selected: operation == widget.value,
+                  onTap: () => _select(operation),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

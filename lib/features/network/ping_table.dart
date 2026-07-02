@@ -12,6 +12,7 @@ const _cellText = Color(0xFFE2E8F0);
 const _mutedText = Color(0xFF64748B);
 const _successGreen = Color(0xFF22C55E);
 const _errorRed = Color(0xFFEF4444);
+const _unsupportedAmber = Color(0xFFF59E0B);
 const _summaryBorder = Color(0xFF1E293B);
 const _primaryBlue = Color(0xFF3B82F6);
 
@@ -44,7 +45,8 @@ class PingTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasStarted = rows.isNotEmpty || isPinging || summary != null || error != null;
+    final hasStarted =
+        rows.isNotEmpty || isPinging || summary != null || error != null;
 
     return Container(
       constraints: BoxConstraints(minHeight: minHeight),
@@ -190,11 +192,11 @@ class PingTable extends StatelessWidget {
   Widget _buildTable() {
     return Table(
       columnWidths: const {
-        0: FixedColumnWidth(44),   // SEQ
-        1: FlexColumnWidth(2.0),   // IP
-        2: FixedColumnWidth(76),   // STATUS
-        3: FixedColumnWidth(52),   // TTL
-        4: FlexColumnWidth(1.0),   // LATENCY
+        0: FixedColumnWidth(44), // SEQ
+        1: FlexColumnWidth(2.0), // IP
+        2: FixedColumnWidth(76), // STATUS
+        3: FixedColumnWidth(52), // TTL
+        4: FlexColumnWidth(1.0), // LATENCY
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
@@ -247,7 +249,11 @@ class PingTable extends StatelessWidget {
     return TableRow(
       decoration: BoxDecoration(color: bg),
       children: [
-        _dataCell('#${(r.seq ?? index) + 1}', align: TextAlign.center, fontWeight: FontWeight.w600),
+        _dataCell(
+          '#${(r.seq ?? index) + 1}',
+          align: TextAlign.center,
+          fontWeight: FontWeight.w600,
+        ),
         _dataCell(r.ip ?? host),
         // Status badge
         Padding(
@@ -265,10 +271,16 @@ class PingTable extends StatelessWidget {
   }
 
   TableRow _buildErrorRow(PingError e, int index, Color bg) {
+    final badgeColor = e.isUnsupported ? _unsupportedAmber : _errorRed;
+    final badgeLabel = e.isUnsupported ? 'N/A' : 'FAIL';
     return TableRow(
       decoration: BoxDecoration(color: bg),
       children: [
-        _dataCell('#${(e.seq ?? index) + 1}', align: TextAlign.center, fontWeight: FontWeight.w600),
+        _dataCell(
+          '#${(e.seq ?? index) + 1}',
+          align: TextAlign.center,
+          fontWeight: FontWeight.w600,
+        ),
         _dataCell(e.ip ?? host, color: _mutedText),
         // Status badge
         Padding(
@@ -276,11 +288,15 @@ class PingTable extends StatelessWidget {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.center,
-            child: _badge(_errorRed, 'FAIL'),
+            child: _badge(badgeColor, badgeLabel),
           ),
         ),
         _dataCell('—', align: TextAlign.center, color: _mutedText),
-        _dataCell(e.message ?? 'Timeout', align: TextAlign.right, color: _mutedText),
+        _dataCell(
+          e.message ?? 'Timeout',
+          align: TextAlign.right,
+          color: _mutedText,
+        ),
       ],
     );
   }
@@ -381,14 +397,20 @@ class PingTable extends StatelessWidget {
                 const SizedBox(width: 28),
                 _summaryItem('Received', s.received.toString()),
                 const SizedBox(width: 28),
-                _summaryItem('Lost', '$lost (${s.packetLoss.toStringAsFixed(0)}%)'),
+                _summaryItem(
+                  'Lost',
+                  '$lost (${s.packetLoss.toStringAsFixed(0)}%)',
+                ),
                 if (stats?.avg != null) ...[
                   const SizedBox(width: 28),
                   _summaryItem('Avg RTT', _fmtDuration(stats!.avg)),
                 ],
                 if (stats?.min != null && stats?.max != null) ...[
                   const SizedBox(width: 28),
-                  _summaryItem('Min / Max', '${_fmtDuration(stats!.min)} / ${_fmtDuration(stats.max)}'),
+                  _summaryItem(
+                    'Min / Max',
+                    '${_fmtDuration(stats!.min)} / ${_fmtDuration(stats.max)}',
+                  ),
                 ],
               ],
             ),

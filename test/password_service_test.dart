@@ -109,6 +109,47 @@ void main() {
       );
     });
 
+    test('duplicate excluded characters are handled idempotently', () {
+      final pw = service.generate(
+        length: 24,
+        useUppercase: false,
+        useLowercase: false,
+        useDigits: true,
+        useSymbols: false,
+        excludedChars: '001122334455',
+      );
+
+      for (final char in pw.split('')) {
+        expect('012345'.contains(char), isFalse);
+      }
+    });
+
+    test('unicode exclusions do not corrupt the ASCII generation pool', () {
+      final pw = service.generate(
+        length: 32,
+        useUppercase: true,
+        useLowercase: true,
+        useDigits: true,
+        useSymbols: true,
+        excludedChars: '你好🙂',
+      );
+
+      expect(pw.length, 32);
+    });
+
+    test('enabled character classes are sampled from the remaining pool', () {
+      final pw = service.generate(
+        length: 16,
+        useUppercase: true,
+        useLowercase: false,
+        useDigits: true,
+        useSymbols: false,
+        excludedChars: '0123456789',
+      );
+
+      expect(pw, matches(RegExp(r'^[A-Z]+$')));
+    });
+
     // -----------------------------------------------------------------------
     // Symbols flag
     // -----------------------------------------------------------------------

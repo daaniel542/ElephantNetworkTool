@@ -435,7 +435,7 @@ class NetworkController extends ChangeNotifier {
       ],
       PingError() => [
         '  ${_padSeq(event.seq)}  '
-            '${(event.message ?? 'Ping request failed.').padRight(18)}  '
+            '${(event.isUnsupported ? 'Unsupported' : event.message ?? 'Ping request failed.').padRight(18)}  '
             '${event.ip == null ? '' : '(${event.ip})'}',
       ],
       PingSummary() => _formatSummary(event),
@@ -526,11 +526,13 @@ class NetworkController extends ChangeNotifier {
       TracerouteHopStatus.pending => 'pending',
       TracerouteHopStatus.success => 'success',
       TracerouteHopStatus.timeout => 'timeout',
+      TracerouteHopStatus.unsupported => 'n/a',
     };
   }
 
   String _compactTraceAddress(TracerouteHop hop) {
     if (hop.status == TracerouteHopStatus.timeout) return 'Timed out';
+    if (hop.status == TracerouteHopStatus.unsupported) return 'Unsupported';
     if (hop.displayAddress.isEmpty) return 'Unknown hop';
     return hop.displayAddress;
   }

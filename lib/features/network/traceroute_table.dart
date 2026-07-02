@@ -159,8 +159,7 @@ class TracerouteTable extends StatelessWidget {
                 ),
               ),
             // Summary — always at bottom
-            if (summary != null && !isTracing)
-              _buildSummary(summary!),
+            if (summary != null && !isTracing) _buildSummary(summary!),
             const SizedBox(height: 14),
           ],
         ],
@@ -171,13 +170,13 @@ class TracerouteTable extends StatelessWidget {
   Widget _buildTable() {
     return Table(
       columnWidths: const {
-        0: FixedColumnWidth(44),   // Hop
-        1: FlexColumnWidth(2.0),   // IP Address
-        2: FixedColumnWidth(88),   // Status
-        3: FlexColumnWidth(1),     // P1
-        4: FlexColumnWidth(1),     // P2
-        5: FlexColumnWidth(1),     // P3
-        6: FlexColumnWidth(1),     // Avg
+        0: FixedColumnWidth(44), // Hop
+        1: FlexColumnWidth(2.0), // IP Address
+        2: FixedColumnWidth(88), // Status
+        3: FlexColumnWidth(1), // P1
+        4: FlexColumnWidth(1), // P2
+        5: FlexColumnWidth(1), // P3
+        6: FlexColumnWidth(1), // Avg
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
@@ -300,6 +299,7 @@ class TracerouteTable extends StatelessWidget {
 
   String _displayAddress(TracerouteHop hop) {
     if (hop.status == TracerouteHopStatus.timeout) return 'Request Timeout';
+    if (hop.status == TracerouteHopStatus.unsupported) return hop.message;
     if (hop.displayAddress.isEmpty) return 'Unknown';
     return hop.displayAddress;
   }
@@ -348,10 +348,7 @@ class TracerouteTable extends StatelessWidget {
                 const SizedBox(width: 32),
                 _summaryItem(
                   'End-to-End',
-                  _formatDuration(
-                    summary.totalEndToEndLatency,
-                    fallback: '-',
-                  ),
+                  _formatDuration(summary.totalEndToEndLatency, fallback: '-'),
                 ),
               ],
             ),
@@ -413,10 +410,7 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 5,
             height: 5,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 4),
           Text(
@@ -439,6 +433,7 @@ class _StatusBadge extends StatelessWidget {
     return switch (hop.status) {
       TracerouteHopStatus.success => (_successGreen, 'OK'),
       TracerouteHopStatus.timeout => (_timeoutAmber, 'TIMEOUT'),
+      TracerouteHopStatus.unsupported => (_timeoutAmber, 'N/A'),
       TracerouteHopStatus.pending => (_pendingGray, 'WAIT'),
     };
   }

@@ -24,12 +24,19 @@ class PingResponse extends PingEvent {
 }
 
 class PingError extends PingEvent {
-  const PingError({this.seq, this.ip, this.message, this.error});
+  const PingError({
+    this.seq,
+    this.ip,
+    this.message,
+    this.error,
+    this.isUnsupported = false,
+  });
 
   final int? seq;
   final String? ip;
   final String? message;
   final Object? error;
+  final bool isUnsupported;
 }
 
 class PingSummary extends PingEvent {
@@ -44,8 +51,9 @@ class PingSummary extends PingEvent {
   final PingStats? stats;
 
   double get packetLoss {
-    if (transmitted == 0) return 0;
-    return ((transmitted - received) / transmitted) * 100;
+    if (transmitted <= 0) return 0;
+    final lost = (transmitted - received).clamp(0, transmitted).toInt();
+    return (lost / transmitted) * 100;
   }
 }
 
