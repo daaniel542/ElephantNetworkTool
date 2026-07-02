@@ -6,6 +6,7 @@ import '../../shared/utils/clipboard_helper.dart';
 import '../../shared/widgets/terminal_output.dart';
 import 'dns_service.dart';
 import 'network_controller.dart';
+import 'traceroute_table.dart';
 
 const _background = Color(0xFFF8FAFC);
 const _surface = Colors.white;
@@ -245,6 +246,7 @@ class _OutputCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isTrace = controller.activeMode == NetworkToolMode.trace;
     final lines = controller.activeOutputLines;
     final outputText = controller.activeOutputText;
 
@@ -257,7 +259,17 @@ class _OutputCard extends StatelessWidget {
           const SizedBox(height: 6),
           const _BodyText('Live results stream into a copy-friendly terminal.'),
           const SizedBox(height: 28),
-          TerminalOutput(lines: lines, minHeight: 342),
+          if (isTrace)
+            TracerouteTable(
+              hops: controller.traceHops,
+              targetHost: controller.traceHost,
+              summary: controller.traceSummary,
+              isTracing: controller.isTracing,
+              error: controller.traceError,
+              minHeight: 342,
+            )
+          else
+            TerminalOutput(lines: lines, minHeight: 342),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,

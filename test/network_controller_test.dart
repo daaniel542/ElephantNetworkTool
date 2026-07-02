@@ -108,22 +108,37 @@ void main() {
       controller.dispose();
     });
 
-    test('formats traceroute hops into terminal output lines', () async {
+    test('formats traceroute metrics into terminal output lines', () async {
       final controller = NetworkController(
         pingService: _FakePingService(const []),
         dnsService: _FakeDnsService(),
         tracerouteService: _FakeTracerouteService(
-          hops: const [
+          hops: [
             TracerouteHop(
               hopNumber: 1,
+              status: TracerouteHopStatus.success,
               address: '192.168.1.1',
-              latency: Duration(milliseconds: 2),
+              probes: const [
+                Duration(milliseconds: 2),
+                null,
+                Duration(milliseconds: 4),
+              ],
               message: 'TTL exceeded',
             ),
             TracerouteHop(
               hopNumber: 2,
+              status: TracerouteHopStatus.timeout,
+              message: 'Request timed out.',
+            ),
+            TracerouteHop(
+              hopNumber: 3,
+              status: TracerouteHopStatus.success,
               address: '93.184.216.34',
-              latency: Duration(milliseconds: 24),
+              probes: const [
+                Duration(milliseconds: 24),
+                Duration(milliseconds: 27),
+                Duration(milliseconds: 30),
+              ],
               message: 'Reached destination',
               isDestination: true,
             ),
@@ -137,15 +152,37 @@ void main() {
       expect(controller.isTracing, isFalse);
       expect(
         controller.activeOutputLines,
-        contains('Tracing route to example.com...'),
+        contains('Trace to example.com | max hops 30'),
       );
+      expect(controller.activeOutputText, contains('Hop | TTL | Status'));
+      expect(controller.activeOutputText, contains('192.168.1.1'));
+      expect(controller.activeOutputText, contains('01  |   1 | success'));
       expect(
-        controller.activeOutputLines,
-        contains(' 1  192.168.1.1 2 ms  TTL exceeded'),
+        controller.activeOutputText,
+        contains('2ms |        * |      4ms |      3ms'),
       );
+      expect(controller.activeOutputText, contains('Timed out'));
+      expect(controller.activeOutputText, contains('03  |   3 | reached'));
       expect(
-        controller.activeOutputLines,
-        contains(' 2  93.184.216.34 24 ms  Reached destination (destination)'),
+        controller.activeOutputText,
+        contains('24ms |     27ms |     30ms |     27ms'),
+      );
+      expect(controller.activeOutputText, contains('Trace Summary'));
+      expect(
+        controller.activeOutputText,
+        contains('Destination : 93.184.216.34'),
+      );
+      expect(controller.activeOutputText, contains('Hops        : 3'));
+      expect(controller.activeOutputText, contains('End-to-end  : 27ms'));
+      expect(controller.traceHops, hasLength(3));
+      expect(
+        controller.traceHops[0].averageRtt,
+        const Duration(milliseconds: 3),
+      );
+      expect(controller.traceHops[1].averageRtt, isNull);
+      expect(
+        controller.traceSummary?.totalEndToEndLatency,
+        const Duration(milliseconds: 27),
       );
 
       controller.dispose();
