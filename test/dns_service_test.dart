@@ -245,6 +245,7 @@ void main() {
     test('throws a clean message for local network exceptions', () async {
       final service = DnsService(
         client: MockClient((_) async => throw Exception('offline')),
+        fallbackRunner: ({required domain, required type}) async => const [],
       );
 
       await expectLater(
@@ -253,15 +254,39 @@ void main() {
           isA<DnsServiceException>().having(
             (error) => error.message,
             'message',
-            'Network unavailable. Check local interface connections.',
+            'DNS-over-HTTPS request failed. Check firewall, proxy, or resolver settings.',
           ),
         ),
       );
     });
 
+    test('falls back to native DNS when the DoH request fails', () async {
+      final service = DnsService(
+        client: MockClient((_) async => throw Exception('offline')),
+        fallbackRunner: ({required domain, required type}) async {
+          expect(domain, 'example.com');
+          expect(type, 'A');
+          return const [
+            {'type': 'A', 'value': '93.184.216.34', 'ttl': 0},
+          ];
+        },
+      );
+
+      final records = await service.lookup(
+        domain: 'example.com',
+        type: DnsRecordType.a,
+      );
+
+      expect(records, hasLength(1));
+      expect(records.single.type, 'A');
+      expect(records.single.value, '93.184.216.34');
+      expect(records.single.ttl, 0);
+    });
+
     test('throws a clean message when the HTTP request times out', () async {
       final service = DnsService(
         timeout: const Duration(milliseconds: 1),
+        fallbackRunner: ({required domain, required type}) async => const [],
         client: MockClient(
           (_) => Future.delayed(
             const Duration(milliseconds: 50),
@@ -276,7 +301,7 @@ void main() {
           isA<DnsServiceException>().having(
             (error) => error.message,
             'message',
-            'Network unavailable. Check local interface connections.',
+            'DNS-over-HTTPS request failed. Check firewall, proxy, or resolver settings.',
           ),
         ),
       );

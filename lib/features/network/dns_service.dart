@@ -3,6 +3,14 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'dns_lookup_fallback.dart';
+
+typedef DnsFallbackRunner =
+    Future<List<Map<String, Object?>>> Function({
+      required String domain,
+      required String type,
+    });
+
 /// Supported DNS record types for Cloudflare DNS-over-HTTPS lookups.
 enum DnsRecordType { a, aaaa, cname, mx, txt, ns }
 
@@ -32,13 +40,16 @@ class DnsServiceException implements Exception {
 class DnsService {
   DnsService({
     http.Client? client,
+    DnsFallbackRunner? fallbackRunner,
     Duration timeout = const Duration(seconds: 5),
   }) : _client = client ?? http.Client(),
+       _fallbackRunner = fallbackRunner ?? runNativeDnsLookupFallback,
        _timeout = timeout;
 
   static const _baseUrl = 'https://cloudflare-dns.com/dns-query';
 
   final http.Client _client;
+  final DnsFallbackRunner _fallbackRunner;
   final Duration _timeout;
 
   /// Resolve [domain] for the given [type] and return DNS answer records.
@@ -58,8 +69,16 @@ class DnsService {
           .get(uri, headers: const {'Accept': 'application/dns-json'})
           .timeout(_timeout);
     } catch (_) {
+      final fallbackRecords = await _lookupWithNativeFallback(
+        cleanDomain,
+        type.name.toUpperCase(),
+      );
+      if (fallbackRecords.isNotEmpty) {
+        return fallbackRecords;
+      }
+
       throw const DnsServiceException(
-        'Network unavailable. Check local interface connections.',
+        'DNS-over-HTTPS request failed. Check firewall, proxy, or resolver settings.',
       );
     }
 
@@ -112,6 +131,27 @@ class DnsService {
   }
 
   void close() => _client.close();
+
+  Future<List<DnsRecord>> _lookupWithNativeFallback(
+    String domain,
+    String type,
+  ) async {
+    try {
+      final records = await _fallbackRunner(domain: domain, type: type);
+      return records
+          .map(
+            (record) => DnsRecord(
+              type: (record['type'] as String?) ?? type,
+              value: (record['value'] as String?) ?? '',
+              ttl: (record['ttl'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .where((record) => record.value.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
 
   String _cleanDomain(String domain) {
     var value = domain.trim();
